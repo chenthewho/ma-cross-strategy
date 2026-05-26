@@ -10,7 +10,7 @@
  *   拉取数据 → 执行策略 → 回测模拟 → 输出报告
  */
 
-import { fetchKlines } from './fetcher.js';
+import { fetchKlines, fetchCurrentPrice } from './fetcher.js';
 import { applyStrategy } from './strategy.js';
 import { backtest } from './backtester.js';
 import { generateReport } from './reporter.js';
@@ -18,6 +18,16 @@ import { generateReport } from './reporter.js';
 async function main() {
   // ===== 解析命令行参数 =====
   const args = process.argv.slice(2);
+
+  // --price 模式：查询实时价格
+  if (args[0] === '--price') {
+    const symbol = (args[1] || 'BTCUSDT').toUpperCase();
+    console.log(`查询 ${symbol} 实时价格...`);
+    const result = await fetchCurrentPrice(symbol);
+    console.log(`\n  ${result.symbol} = $${result.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}\n`);
+    return;
+  }
+
   const symbol = args[0] || 'BTCUSDT';
   const shortPeriod = parseInt(args[1]) || 5;
   const longPeriod = parseInt(args[2]) || 20;

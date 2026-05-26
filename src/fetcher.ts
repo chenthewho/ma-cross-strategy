@@ -85,3 +85,28 @@ export async function fetchKlines(
 
   return candles;
 }
+
+/**
+ * 查询当前实时价格
+ *
+ * 使用 Binance 公开 ticker/price 接口，无需认证。
+ *
+ * @param symbol 交易对，如 "BTCUSDT"
+ * @returns { symbol, price }
+ */
+export async function fetchCurrentPrice(
+  symbol: string = 'BTCUSDT'
+): Promise<{ symbol: string; price: number }> {
+  const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`API 请求失败: ${response.status} ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as { symbol: string; price: string };
+  return {
+    symbol: data.symbol,
+    price: parseFloat(data.price),
+  };
+}
