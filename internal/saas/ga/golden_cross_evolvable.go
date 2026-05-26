@@ -5,6 +5,7 @@ package ga
 import (
 	"context"
 	"encoding/json"
+	"hash/fnv"
 	"math"
 	"math/rand"
 
