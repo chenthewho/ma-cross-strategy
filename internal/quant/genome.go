@@ -1,132 +1,69 @@
 package quant
 
-// ─── Hard Bounds ────────────────────────────────────────────────────────────
+import (
+	"encoding/json"
+	"math"
+)
 
-// HardBounds defines the absolute minima and maxima for every chromosome field.
-// No chromosome may ever exceed these bounds after clamping.
-var HardBounds = struct {
-	AMin, AMax                   float64
-	BMin, BMax                   float64
-	CMin, CMax                   float64
-	BetaMin, BetaMax             float64
-	GammaMin, GammaMax           float64
-	SigmaFloorMin, SigmaFloorMax float64
-	MacroIntervalDaysMin, MacroIntervalDaysMax       int
-	MacroAccelThresholdMin, MacroAccelThresholdMax    float64
-	MacroAccelMultiplierMin, MacroAccelMultiplierMax  float64
-	SoftReleaseMonthsMin, SoftReleaseMonthsMax        int
-	MaxSoftReleasePctMin, MaxSoftReleasePctMax        float64
-	DeadHoldTargetMin, DeadHoldTargetMax              float64
-	MicroReservePctMin, MicroReservePctMax            float64
-	EMAShortBarsMin, EMAShortBarsMax                 int
-	EMALongBarsMin, EMALongBarsMax                   int
-}{
-	AMin: -3, AMax: 3,
-	BMin: -3, BMax: 3,
-	CMin: -3, CMax: 3,
-	BetaMin: 0.1, BetaMax: 5.0,
-	GammaMin: 0, GammaMax: 2.0,
-	SigmaFloorMin: 0.001, SigmaFloorMax: 0.05,
-	MacroIntervalDaysMin: 7, MacroIntervalDaysMax: 90,
-	MacroAccelThresholdMin: 0.01, MacroAccelThresholdMax: 0.20,
-	MacroAccelMultiplierMin: 1.0, MacroAccelMultiplierMax: 5.0,
-	SoftReleaseMonthsMin: 1, SoftReleaseMonthsMax: 24,
-	MaxSoftReleasePctMin: 0.05, MaxSoftReleasePctMax: 0.50,
-	DeadHoldTargetMin: 0.10, DeadHoldTargetMax: 0.90,
-	MicroReservePctMin: 0.05, MicroReservePctMax: 0.50,
-	EMAShortBarsMin: 5, EMAShortBarsMax: 55,
-	EMALongBarsMin: 20, EMALongBarsMax: 200,
-}
+// ─── Chromosome — Evolvable Strategy Parameters ─────────────
+//
+// 15 fields optimized by the GA engine.
+// These participate in crossover and mutation during evolution.
 
-// ─── Chromosome ─────────────────────────────────────────────────────────────
-
-// Chromosome encodes the full set of evolvable parameters for the golden_cross
-// strategy. Every field is bounded by HardBounds and additionally constrained
-// by structural rules enforced by ClampChromosome.
+// Chromosome holds all evolvable strategy parameters.
 type Chromosome struct {
-	A  float64 `json:"a"`
-	B  float64 `json:"b"`
-	C  float64 `json:"c"`
-	Beta       float64 `json:"beta"`
-	Gamma      float64 `json:"gamma"`
-	SigmaFloor float64 `json:"sigma_floor"`
+	// Signal coefficients (three-factor linear synthesis)
+	A float64 `json:"a"` // Price deviation weight (X1), range [-3, 3]
+	B float64 `json:"b"` // EMA divergence weight (X2), range [-3, 3]
+	C float64 `json:"c"` // Momentum weight (X3), range [-3, 3]
 
-	MacroIntervalDays    int     `json:"macro_interval_days"`
-	MacroAccelThreshold  float64 `json:"macro_accel_threshold"`
-	MacroAccelMultiplier float64 `json:"macro_accel_multiplier"`
+	// Sigmoid engine parameters
+	Beta       float64 `json:"beta"`        // Sigmoid aggressiveness, range [0.1, 5.0]
+	Gamma      float64 `json:"gamma"`       // Inventory bias coefficient, range [0, 2.0]
+	SigmaFloor float64 `json:"sigma_floor"` // Volatility floor (prevents division by zero), range [0.001, 0.05]
 
-	SoftReleaseMonths int     `json:"soft_release_months"`
-	MaxSoftReleasePct float64 `json:"max_soft_release_pct"`
+	// Macro engine parameters
+	MacroIntervalDays    int     `json:"macro_interval_days"`    // Base DCA interval, range [7, 90]
+	MacroAccelThreshold  float64 `json:"macro_accel_threshold"`  // Price deviation acceleration trigger, range [0.01, 0.20]
+	MacroAccelMultiplier float64 `json:"macro_accel_multiplier"` // Acceleration multiplier, range [1.0, 5.0]
 
-	DeadHoldTarget  float64 `json:"dead_hold_target"`
-	MicroReservePct float64 `json:"micro_reserve_pct"`
+	// Dead hold release parameters
+	SoftReleaseMonths int     `json:"soft_release_months"` // Aging months for soft release, range [1, 24]
+	MaxSoftReleasePct float64 `json:"max_soft_release_pct"` // Max soft release fraction, range [0.05, 0.50]
+	DeadHoldTarget    float64 `json:"dead_hold_target"`     // Target dead hold ratio, range [0.10, 0.90]
 
-	EMAShortBars int `json:"ema_short_bars"`
-	EMALongBars  int `json:"ema_long_bars"`
+	// Reserve & indicator parameters
+	MicroReservePct float64 `json:"micro_reserve_pct"` // Micro reserve fraction, range [0.05, 0.50]
+	EMAShortBars    int     `json:"ema_short_bars"`    // Short EMA window, range [5, 55]
+	EMALongBars     int     `json:"ema_long_bars"`     // Long EMA window, range [20, 200]
 }
 
-// ClampChromosome first clips every field to its HardBounds range, then
-// enforces structural constraints that must hold between related fields.
-func ClampChromosome(c *Chromosome) {
-	// Per-field hard bounds.
-	c.A = ClipFloat64(c.A, HardBounds.AMin, HardBounds.AMax)
-	c.B = ClipFloat64(c.B, HardBounds.BMin, HardBounds.BMax)
-	c.C = ClipFloat64(c.C, HardBounds.CMin, HardBounds.CMax)
-	c.Beta = ClipFloat64(c.Beta, HardBounds.BetaMin, HardBounds.BetaMax)
-	c.Gamma = ClipFloat64(c.Gamma, HardBounds.GammaMin, HardBounds.GammaMax)
-	c.SigmaFloor = ClipFloat64(c.SigmaFloor, HardBounds.SigmaFloorMin, HardBounds.SigmaFloorMax)
-
-	c.MacroIntervalDays = clampInt(c.MacroIntervalDays, HardBounds.MacroIntervalDaysMin, HardBounds.MacroIntervalDaysMax)
-	c.MacroAccelThreshold = ClipFloat64(c.MacroAccelThreshold, HardBounds.MacroAccelThresholdMin, HardBounds.MacroAccelThresholdMax)
-	c.MacroAccelMultiplier = ClipFloat64(c.MacroAccelMultiplier, HardBounds.MacroAccelMultiplierMin, HardBounds.MacroAccelMultiplierMax)
-
-	c.SoftReleaseMonths = clampInt(c.SoftReleaseMonths, HardBounds.SoftReleaseMonthsMin, HardBounds.SoftReleaseMonthsMax)
-	c.MaxSoftReleasePct = ClipFloat64(c.MaxSoftReleasePct, HardBounds.MaxSoftReleasePctMin, HardBounds.MaxSoftReleasePctMax)
-
-	c.DeadHoldTarget = ClipFloat64(c.DeadHoldTarget, HardBounds.DeadHoldTargetMin, HardBounds.DeadHoldTargetMax)
-	c.MicroReservePct = ClipFloat64(c.MicroReservePct, HardBounds.MicroReservePctMin, HardBounds.MicroReservePctMax)
-
-	c.EMAShortBars = clampInt(c.EMAShortBars, HardBounds.EMAShortBarsMin, HardBounds.EMAShortBarsMax)
-	c.EMALongBars = clampInt(c.EMALongBars, HardBounds.EMALongBarsMin, HardBounds.EMALongBarsMax)
-
-	// ── Structural constraints ──────────────────────────────────────────
-
-	// EMA period ordering: short must be strictly less than long.
-	if c.EMAShortBars >= c.EMALongBars {
-		c.EMAShortBars = c.EMALongBars - 1
-		if c.EMAShortBars < HardBounds.EMAShortBarsMin {
-			c.EMAShortBars = HardBounds.EMAShortBarsMin
-			c.EMALongBars = c.EMAShortBars + 1
-		}
-	}
-
-	// Combined reserve must not exceed 95% of total equity.
-	if c.DeadHoldTarget+c.MicroReservePct > 0.95 {
-		// Scale both proportionally down to 0.95.
-		scale := 0.95 / (c.DeadHoldTarget + c.MicroReservePct)
-		c.DeadHoldTarget *= scale
-		c.MicroReservePct *= scale
-	}
+// HardBounds defines the legal value range for each chromosome field.
+// [min, max] inclusive.
+var HardBounds = map[string][2]float64{
+	"a":                      {-3, 3},
+	"b":                      {-3, 3},
+	"c":                      {-3, 3},
+	"beta":                   {0.1, 5.0},
+	"gamma":                  {0, 2.0},
+	"sigma_floor":            {0.001, 0.05},
+	"macro_interval_days":    {7, 90},
+	"macro_accel_threshold":  {0.01, 0.20},
+	"macro_accel_multiplier": {1.0, 5.0},
+	"soft_release_months":    {1, 24},
+	"max_soft_release_pct":   {0.05, 0.50},
+	"dead_hold_target":       {0.10, 0.90},
+	"micro_reserve_pct":      {0.05, 0.50},
+	"ema_short_bars":         {5, 55},
+	"ema_long_bars":          {20, 200},
 }
 
-// clampInt is a helper that clamps an integer to [lo, hi].
-func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
-}
-
-// ─── Default Seed ───────────────────────────────────────────────────────────
-
-// DefaultSeedChromosome is the reference starting point for evolution.
-// Values are taken from the golden_cross strategy specification.
+// DefaultSeedChromosome is the product default champion seed.
+// Used as GA cold-start individual and JSON decode fallback.
 var DefaultSeedChromosome = Chromosome{
 	A: 0.0, B: 0.3, C: 0.1,
-	Beta: 1.0, Gamma: 0.3,
+	Beta:       1.0,
+	Gamma:      0.3,
 	SigmaFloor: 0.005,
 	MacroIntervalDays:    30,
 	MacroAccelThreshold:  0.05,
@@ -139,54 +76,155 @@ var DefaultSeedChromosome = Chromosome{
 	EMALongBars:          55,
 }
 
-// ─── Spawn Point ────────────────────────────────────────────────────────────
+// ClampChromosome clamps all fields to HardBounds and repairs structural constraints.
+// MUST be called after mutation and crossover.
+func ClampChromosome(c *Chromosome) {
+	// Clamp float64 fields
+	c.A = clipToBounds("a", c.A)
+	c.B = clipToBounds("b", c.B)
+	c.C = clipToBounds("c", c.C)
+	c.Beta = clipToBounds("beta", c.Beta)
+	c.Gamma = clipToBounds("gamma", c.Gamma)
+	c.SigmaFloor = clipToBounds("sigma_floor", c.SigmaFloor)
+	c.MacroAccelThreshold = clipToBounds("macro_accel_threshold", c.MacroAccelThreshold)
+	c.MacroAccelMultiplier = clipToBounds("macro_accel_multiplier", c.MacroAccelMultiplier)
+	c.MaxSoftReleasePct = clipToBounds("max_soft_release_pct", c.MaxSoftReleasePct)
+	c.DeadHoldTarget = clipToBounds("dead_hold_target", c.DeadHoldTarget)
+	c.MicroReservePct = clipToBounds("micro_reserve_pct", c.MicroReservePct)
 
-// CapitalPolicy defines the capital injection rules for a strategy epoch.
-// These values are frozen for the duration of an epoch and are not evolved.
-type CapitalPolicy struct {
-	InitialCapital float64 `json:"initial_capital"`
-	MonthlyInject  float64 `json:"monthly_inject"`
-	DeadLineMonths float64 `json:"dead_line_months"`
+	// Clamp int fields
+	c.MacroIntervalDays = intClipToBounds("macro_interval_days", c.MacroIntervalDays)
+	c.SoftReleaseMonths = intClipToBounds("soft_release_months", c.SoftReleaseMonths)
+	c.EMAShortBars = intClipToBounds("ema_short_bars", c.EMAShortBars)
+	c.EMALongBars = intClipToBounds("ema_long_bars", c.EMALongBars)
+
+	// ── Structural constraints ──
+
+	// EMA order: short < long
+	if c.EMAShortBars >= c.EMALongBars {
+		c.EMALongBars = c.EMAShortBars + 1
+		if c.EMALongBars > 200 {
+			c.EMAShortBars = 199
+			c.EMALongBars = 200
+		}
+	}
+
+	// DCA interval minimum
+	if c.MacroIntervalDays < 7 {
+		c.MacroIntervalDays = 7
+	}
+
+	// Soft release aging at least 1 month
+	if c.SoftReleaseMonths < 1 {
+		c.SoftReleaseMonths = 1
+	}
+
+	// Avoid over-reservation: dead_hold_target + micro_reserve_pct <= 0.95
+	if c.DeadHoldTarget+c.MicroReservePct > 0.95 {
+		excess := c.DeadHoldTarget + c.MicroReservePct - 0.95
+		c.MicroReservePct = math.Max(0.05, c.MicroReservePct-excess/2)
+		c.DeadHoldTarget = math.Max(0.10, c.DeadHoldTarget-excess/2)
+	}
 }
 
-// RiskBounds defines the risk-control parameters for a strategy epoch.
-// These values are frozen for the duration of an epoch and are not evolved.
-type RiskBounds struct {
-	FeeRate        float64 `json:"fee_rate"`
-	Slippage       float64 `json:"slippage"`
-	GlobalStopLoss float64 `json:"global_stop_loss"`
-	LotStep        int     `json:"lot_step"`
-	LotMin         int     `json:"lot_min"`
+func clipToBounds(name string, v float64) float64 {
+	b, ok := HardBounds[name]
+	if !ok {
+		return v
+	}
+	return ClipFloat64(v, b[0], b[1])
 }
 
-// SpawnPoint bundles the capital policy and risk bounds that define the
-// starting conditions for a strategy epoch. These are epoch-level frozen
-// parameters — they do not participate in the genome.
+func intClipToBounds(name string, v int) int {
+	b, ok := HardBounds[name]
+	if !ok {
+		return v
+	}
+	if float64(v) < b[0] {
+		return int(b[0])
+	}
+	if float64(v) > b[1] {
+		return int(b[1])
+	}
+	return v
+}
+
+// ─── SpawnPoint — Epoch-level frozen parameters ─────────────
+
+// SpawnPoint contains capital policy and risk parameters.
+// These are frozen at Epoch start and shared across the entire population.
+// They do NOT participate in crossover or mutation.
 type SpawnPoint struct {
 	Policy CapitalPolicy `json:"policy"`
 	Risk   RiskBounds    `json:"risk"`
 }
 
-// ─── Gene Step Sizes ────────────────────────────────────────────────────────
+// CapitalPolicy defines capital allocation rules.
+type CapitalPolicy struct {
+	InitialCapital float64 `json:"initial_capital"` // Initial capital in CNY, default 100000
+	MonthlyInject  float64 `json:"monthly_inject"`  // Monthly injection in CNY, default 5000
+	DeadLineMonths int     `json:"deadline_months"` // Max months before forced DCA, default 24
+}
 
-// GeneStep returns the mutation step size for each chromosome field.
-// These values control how much a gene can shift per mutation event.
-func GeneStep() map[string]float64 {
-	return map[string]float64{
-		"a":                      0.05,
-		"b":                      0.05,
-		"c":                      0.05,
-		"beta":                   0.10,
-		"gamma":                  0.05,
-		"sigma_floor":            0.001,
-		"macro_interval_days":    1.0,
-		"macro_accel_threshold":  0.005,
-		"macro_accel_multiplier": 0.10,
-		"soft_release_months":    1.0,
-		"max_soft_release_pct":   0.01,
-		"dead_hold_target":       0.01,
-		"micro_reserve_pct":      0.01,
-		"ema_short_bars":         1.0,
-		"ema_long_bars":          2.0,
+// RiskBounds defines risk management parameters.
+type RiskBounds struct {
+	FeeRate        float64 `json:"fee_rate"`         // Trading fee rate, default 0.0003 (0.03%)
+	Slippage       float64 `json:"slippage"`         // Slippage, default 0.0001 (0.01%)
+	GlobalStopLoss float64 `json:"global_stop_loss"` // Global stop loss threshold, default 0.30 (30%)
+	LotStep        float64 `json:"lot_step"`         // Minimum trading unit (A-share: 100), default 100
+	LotMin         float64 `json:"lot_min"`          // Minimum trading quantity, default 100
+}
+
+// DefaultSpawnPoint returns the default capital policy and risk bounds.
+var DefaultSpawnPoint = SpawnPoint{
+	Policy: CapitalPolicy{
+		InitialCapital: 100000,
+		MonthlyInject:  5000,
+		DeadLineMonths: 24,
+	},
+	Risk: RiskBounds{
+		FeeRate:        0.0003,
+		Slippage:       0.0001,
+		GlobalStopLoss: 0.30,
+		LotStep:        100,
+		LotMin:         100,
+	},
+}
+
+// ─── ParamPack ──────────────────────────────────────────────
+
+// ParamPack wraps Chromosome + SpawnPoint for JSON serialization.
+type ParamPack struct {
+	StrategyID string    `json:"strategy_id"`
+	Chromosome Chromosome `json:"chromosome"`
+	SpawnPoint SpawnPoint `json:"spawn_point"`
+}
+
+// EncodeParamPack serializes a ParamPack to JSON.
+func EncodeParamPack(pp ParamPack) ([]byte, error) {
+	return json.Marshal(pp)
+}
+
+// DecodeParamPack deserializes a ParamPack from JSON.
+// Returns DefaultSeedChromosome + DefaultSpawnPoint if raw is empty or invalid.
+func DecodeParamPack(raw []byte) ParamPack {
+	if len(raw) == 0 {
+		return ParamPack{
+			StrategyID: "golden_cross",
+			Chromosome: DefaultSeedChromosome,
+			SpawnPoint: DefaultSpawnPoint,
+		}
 	}
+	var pp ParamPack
+	if err := json.Unmarshal(raw, &pp); err != nil {
+		return ParamPack{
+			StrategyID: "golden_cross",
+			Chromosome: DefaultSeedChromosome,
+			SpawnPoint: DefaultSpawnPoint,
+		}
+	}
+	if pp.StrategyID == "" {
+		pp.StrategyID = "golden_cross"
+	}
+	return pp
 }

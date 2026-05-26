@@ -2,138 +2,169 @@ package quant
 
 import (
 	"math"
-	"time"
 )
 
-// GhostDCAConfig holds parameters for the ghost DCA benchmark simulator.
-type GhostDCAConfig struct {
-	InitialCapital float64 // Starting CNY capital, deployed at bar[0]
-	MonthlyInject  float64 // CNY injected on each calendar month boundary
-}
-
-// GhostDCAResult holds the output of a ghost DCA simulation.
+// GhostDCAResult holds the output of a passive DCA benchmark simulation.
 type GhostDCAResult struct {
-	FinalEquity   float64 // NAV at last bar (shares × final close)
-	TotalInjected float64 // InitialCapital + all monthly injections
-	MaxDrawdown   float64 // Peak-to-trough drawdown as fraction [0, 1]
-	ROI           float64 // Modified Dietz return on investment
+	FinalEquity   float64 // final portfolio value in CNY
+	TotalInjected float64 // total capital injected
+	MaxDrawdown   float64 // maximum drawdown (fraction, e.g. 0.25 = 25%)
+	ROI           float64 // Modified Dietz return (fraction)
 }
 
-// SimulateGhostDCA runs a ghost dollar-cost-averaging benchmark against
-// historical bars.
+// navPoint is a single point on the NAV curve.
+type navPoint struct {
+	ts  int64
+	nav float64
+}
+
+// GhostDCAConfig holds DCA benchmark parameters.
+type GhostDCAConfig struct {
+	InitialCapital float64 // seed capital at first bar
+	MonthlyInject  float64 // monthly injection amount
+}
+
+// SimulateGhostDCA runs a passive DCA benchmark.
 //
-// Mechanics:
-//   - Buy cfg.InitialCapital worth of shares at bars[0].Close.
-//   - On every calendar-month boundary, inject cfg.MonthlyInject CNY and buy
-//     shares at that bar's close.
-//   - Track the NAV curve (shares × current close) for drawdown calculation.
-//   - Compute Modified Dietz ROI:
-//     (FinalEquity - InitialCapital - SumInjected) / (InitialCapital + Σ(CFᵢ × wᵢ))
-//     where wᵢ = (totalBars - injectionBarIdx) / totalBars.
+// Algorithm:
+//   1. Buy all initial capital at the first bar's close
+//   2. At each calendar month boundary, inject MonthlyInject CNY and buy all
+//   3. Track NAV curve for max drawdown calculation
+//   4. Compute Modified Dietz ROI (removes injection jumps from NAV)
+//
+// Bars must be sorted by OpenTime ascending.
 func SimulateGhostDCA(bars []Bar, cfg GhostDCAConfig) GhostDCAResult {
 	if len(bars) == 0 || cfg.InitialCapital <= 0 {
 		return GhostDCAResult{}
 	}
 
-	// Resolve timestamp units: milliseconds if > 1e10, else seconds.
-	tsToTime := func(ts int64) time.Time {
-		if ts > 1e10 {
-			return time.UnixMilli(ts)
-		}
-		return time.Unix(ts, 0)
-	}
-
-	firstPrice := bars[0].Close
-	if firstPrice <= 0 {
-		return GhostDCAResult{}
-	}
-
-	shares := cfg.InitialCapital / firstPrice
-	totalInjected := cfg.InitialCapital
-	sumMonthly := 0.0 // sum of all monthly injections (excludes InitialCapital)
-
-	nav := make([]float64, len(bars))
-
-	// cashFlows records every monthly injection amount and its bar index.
-	type cashFlow struct {
+	var navs []navPoint
+	var cashFlows []struct {
+		ts     int64
 		amount float64
-		barIdx int
 	}
-	cashFlows := make([]cashFlow, 0)
 
-	lastMonth := tsToTime(bars[0].OpenTime).Month()
-	lastYear := tsToTime(bars[0].OpenTime).Year()
+	shares := 0.0
+	cash := cfg.InitialCapital
+	totalInjected := cfg.InitialCapital
+
+	// Track current month to detect month boundaries
+	currentMonth := int64(-1)
 
 	for i, bar := range bars {
-		t := tsToTime(bar.OpenTime)
-
-		// Detect calendar-month boundary (skip the first bar).
-		if i > 0 && (t.Year() != lastYear || t.Month() != lastMonth) {
-			if cfg.MonthlyInject > 0 && bar.Close > 0 {
-				added := cfg.MonthlyInject / bar.Close
-				shares += added
-				totalInjected += cfg.MonthlyInject
-				sumMonthly += cfg.MonthlyInject
-				cashFlows = append(cashFlows, cashFlow{
-					amount: cfg.MonthlyInject,
-					barIdx: i,
-				})
-			}
-			lastMonth = t.Month()
-			lastYear = t.Year()
+		price := bar.Close
+		if price <= 0 {
+			continue
 		}
 
-		nav[i] = shares * bar.Close
+		// Detect month boundary for injection
+		// Approximate: every 30 days = one injection
+		monthIdx := bar.OpenTime / (30 * 24 * 3600 * 1000)
+		if i == 0 {
+			// Initial buy at first bar
+			shares = cash / price
+			cash = 0
+			currentMonth = monthIdx
+		} else if monthIdx > currentMonth {
+			// Month boundary: inject and buy
+			cash += cfg.MonthlyInject
+			totalInjected += cfg.MonthlyInject
+			additionalShares := cash / price
+			shares += additionalShares
+			cashFlows = append(cashFlows, struct {
+				ts     int64
+				amount float64
+			}{bar.OpenTime, cfg.MonthlyInject})
+			cash = 0
+			currentMonth = monthIdx
+		}
+
+		nav := shares*price + cash
+		navs = append(navs, navPoint{bar.OpenTime, nav})
 	}
+
+	if len(navs) == 0 {
+		return GhostDCAResult{TotalInjected: totalInjected}
+	}
+
+	// Final equity
+	finalEquity := navs[len(navs)-1].nav
+
+	// Max drawdown from NAV curve
+	maxDD := MaxDrawdownNAV(navs)
 
 	// Modified Dietz ROI
-	totalBars := len(bars)
-	if totalBars < 2 {
-		totalBars = 2 // avoid division by zero
-	}
-	denomBars := totalBars - 1
-
-	var weightedCFSum float64
-	for _, cf := range cashFlows {
-		weight := float64(denomBars-cf.barIdx) / float64(denomBars)
-		weightedCFSum += cf.amount * weight
-	}
-
-	finalEquity := nav[len(nav)-1]
-
-	var roi float64
-	denom := cfg.InitialCapital + weightedCFSum
-	if denom != 0 {
-		roi = (finalEquity - cfg.InitialCapital - sumMonthly) / denom
-	}
+	roi := ModifiedDietzROI(finalEquity, cfg.InitialCapital, cashFlows, bars[0].OpenTime, bars[len(bars)-1].OpenTime)
 
 	return GhostDCAResult{
-		FinalEquity:   math.Round(finalEquity*100) / 100,
-		TotalInjected: math.Round(totalInjected*100) / 100,
-		MaxDrawdown:   math.Round(MaxDrawdownFromNAV(nav)*10000) / 10000,
-		ROI:           math.Round(roi*10000) / 10000,
+		FinalEquity:   finalEquity,
+		TotalInjected: totalInjected,
+		MaxDrawdown:   maxDD,
+		ROI:           roi,
 	}
 }
 
-// MaxDrawdownFromNAV computes the peak-to-trough maximum drawdown from a NAV
-// curve. Returns a fraction in [0, 1]; 0 means no drawdown occurred.
-func MaxDrawdownFromNAV(nav []float64) float64 {
-	if len(nav) < 2 {
+// MaxDrawdownNAV computes the maximum drawdown from a NAV curve.
+// Returns the ratio (e.g. 0.25 = 25% peak-to-trough decline).
+func MaxDrawdownNAV(navs []navPoint) float64 {
+	if len(navs) < 2 {
 		return 0
 	}
 
-	peak := nav[0]
-	var maxDD float64
+	peak := navs[0].nav
+	maxDD := 0.0
 
-	for _, v := range nav {
-		if v > peak {
-			peak = v
+	for _, p := range navs {
+		if p.nav > peak {
+			peak = p.nav
 		}
-		dd := (peak - v) / peak
+		dd := (peak - p.nav) / peak
 		if dd > maxDD {
 			maxDD = dd
 		}
 	}
-
 	return maxDD
+}
+
+// ModifiedDietzROI computes the Modified Dietz return.
+//
+// Formula:
+//
+//	ROI = (EndValue - StartValue - SumCF) /
+//	      (StartValue + Sum(CF_i × (TotalDays - DayOfCF) / TotalDays))
+//
+// This removes injection jumps from NAV, giving a time-weighted return.
+func ModifiedDietzROI(
+	endValue, startValue float64,
+	cashFlows []struct {
+		ts     int64
+		amount float64
+	},
+	startTime, endTime int64,
+) float64 {
+	if startValue <= 0 {
+		return 0
+	}
+
+	totalDays := float64(endTime-startTime) / (24 * 3600 * 1000)
+	if totalDays <= 0 {
+		// Handle single-bar case
+		return (endValue - startValue) / startValue
+	}
+
+	totalCF := 0.0
+	weightedCF := 0.0
+	for _, cf := range cashFlows {
+		totalCF += cf.amount
+		daysSinceStart := float64(cf.ts-startTime) / (24 * 3600 * 1000)
+		weight := (totalDays - daysSinceStart) / totalDays
+		weightedCF += cf.amount * weight
+	}
+
+	denominator := startValue + weightedCF
+	if math.Abs(denominator) < 1e-10 {
+		return 0
+	}
+
+	return (endValue - startValue - totalCF) / denominator
 }

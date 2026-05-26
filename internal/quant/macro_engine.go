@@ -1,88 +1,67 @@
 package quant
 
-// MacroInput bundles all the parameters needed to compute a macro-level
-// trading decision.
-type MacroInput struct {
-	TotalEquity   float64 // Total portfolio equity in CNY
-	SpendableCNY  float64 // Available CNY balance for trading
-	CurrentPrice  float64 // Current asset price
-	DeadHoldValue float64 // Total value locked in dead-hold lots
-	MonthlyInject float64 // Scheduled monthly CNY injection
+import "math"
 
-	TimeDilation float64 // Time-dilation multiplier from market state
-	EMALong      float64 // Long-term EMA value for price deviation
-
-	MacroIntervalDays    int     // Minimum days between macro actions
-	MacroAccelThreshold  float64 // Price deviation threshold for acceleration
-	MacroAccelMultiplier float64 // Acceleration multiplier on monthly injection
-
-	DaysSinceLastMacro int // Days elapsed since the last macro action
-}
-
-// MacroOutput carries the computed macro-level order decision.
-type MacroOutput struct {
-	OrderCNY float64 // CNY amount to allocate (0 if no action)
-	Action   string  // "BUY" or "" (empty string means no action)
-}
-
-// ComputeMacroDecision evaluates whether a macro-level buy order should be
-// placed based on time-based injection schedules and price deviation from
-// the long-term EMA.
+// ComputeMacroDecision generates a DCA buy intention from the macro engine.
 //
-// Rules:
-//  1. Base order is 0 by default.
-//  2. If enough days have passed (adjusted by time dilation), base = MonthlyInject.
-//  3. If price is significantly below the long EMA, accelerate by adding
-//     MonthlyInject * MacroAccelMultiplier.
-//  4. If spendable CNY exceeds 3× MonthlyInject, boost base to at least
-//     min(SpendableCNY, MonthlyInject * 2).
-//  5. Final order CNY is clamped to [100, SpendableCNY].
-//  6. Action is "BUY" if OrderCNY >= 100, otherwise "".
-func ComputeMacroDecision(in MacroInput) MacroOutput {
-	base := 0.0
+// Three trigger conditions (evaluated in order):
+//   1. BASE DCA: DaysSinceLastMacro >= MacroIntervalDays × TimeDilation
+//      → order = MonthlyInject
+//   2. ACCELERATION: PriceDeviation < -MacroAccelThreshold
+//      → extra buy = MonthlyInject × MacroAccelMultiplier (resets counter)
+//   3. DEADLINE: SpendableCNY > MonthlyInject × 3
+//      → force DCA, amount = min(SpendableCNY, MonthlyInject × 2)
+//
+// Iron law: only BUY intentions, never SELL.
+// Minimum order: 100 CNY.
+func ComputeMacroDecision(in MacroDecisionInput) *MacroIntent {
+	var orderCNY float64
 
-	// Time-based injection: if enough calendar days have passed (adjusted by
-	// time dilation), the base is the monthly injection amount.
+	// ── Trigger 1: Base DCA ──
 	effectiveInterval := float64(in.MacroIntervalDays) * in.TimeDilation
-	if effectiveInterval < 1 {
-		effectiveInterval = 1 // safety: never allow zero/negative
-	}
-	if float64(in.DaysSinceLastMacro) >= effectiveInterval {
-		base = in.MonthlyInject
-	}
+	baseTriggered := effectiveInterval > 0 && float64(in.DaysSinceLastMacro) >= effectiveInterval
 
-	// Price deviation from long EMA.
-	if in.EMALong > 0 {
-		priceDev := (in.CurrentPrice - in.EMALong) / in.EMALong
+	// ── Trigger 2: Acceleration (price far below long EMA) ──
+	accelTriggered := in.PriceDeviation < -in.MacroAccelThreshold
 
-		// Acceleration: if price is significantly below the long EMA.
-		if priceDev < -in.MacroAccelThreshold {
-			base += in.MonthlyInject * in.MacroAccelMultiplier
-		}
+	// ── Trigger 3: Deadline (capital piling up) ──
+	deadlineTriggered := in.SpendableCNY > in.MonthlyInject*3
+
+	if !baseTriggered && !accelTriggered && !deadlineTriggered {
+		return nil
 	}
 
-	// Liquidity boost: if we have excess spendable CNY (>3× monthly inject),
-	// increase base to at least min(SpendableCNY, MonthlyInject*2).
-	if in.SpendableCNY > in.MonthlyInject*3 {
-		floor := in.MonthlyInject * 2
-		if in.SpendableCNY < floor {
-			floor = in.SpendableCNY
-		}
-		if base < floor {
-			base = floor
-		}
+	switch {
+	case accelTriggered:
+		// Acceleration overrides base — extra buy
+		orderCNY = in.MonthlyInject * in.MacroAccelMultiplier
+
+	case baseTriggered && deadlineTriggered:
+		// Both base and deadline → use the larger amount
+		baseOrder := in.MonthlyInject
+		deadlineOrder := math.Min(in.SpendableCNY, in.MonthlyInject*2)
+		orderCNY = math.Max(baseOrder, deadlineOrder)
+
+	case baseTriggered:
+		orderCNY = in.MonthlyInject
+
+	case deadlineTriggered:
+		orderCNY = math.Min(in.SpendableCNY, in.MonthlyInject*2)
+
+	default:
+		return nil
 	}
 
-	// Clamp final order amount to valid range.
-	orderCNY := ClipFloat64(base, 100, in.SpendableCNY)
-
-	action := ""
-	if orderCNY >= 100 {
-		action = "BUY"
+	// Clamp to available funds and minimum order
+	orderCNY = ClipFloat64(orderCNY, 100, in.SpendableCNY)
+	if orderCNY < 100 {
+		return nil
 	}
 
-	return MacroOutput{
-		OrderCNY: orderCNY,
-		Action:   action,
+	return &MacroIntent{
+		Action:    "BUY",
+		AmountCNY: RoundToCNY(orderCNY),
+		Engine:    "MACRO",
+		LotType:   "DEAD_STACK",
 	}
 }
