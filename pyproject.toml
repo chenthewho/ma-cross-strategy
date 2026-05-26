@@ -1,0 +1,18 @@
+[project]
+name = "ma-cross-strategy"
+version = "2.0.0"
+description = "AI-enhanced quantitative trading backtester"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+    "pandas>=2.0",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+ma-cross = "src.main:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

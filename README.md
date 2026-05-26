@@ -1,118 +1,78 @@
-# MA Cross Strategy Backtester
+# MA Cross Strategy Backtester v2.0
 
-均线交叉策略量化回测器 — 从 Binance 获取历史 K 线数据，模拟均线交叉策略交易，输出 ASCII 报告。
+AI 增强量化回测器 — 多维度信号融合 + 市场情绪 + 费用模拟
 
 ## 快速开始
 
 ```bash
 git clone git@github.com:chenthewho/ma-cross-strategy.git
 cd ma-cross-strategy
-npm install
-npm run build
+python3 -m venv .venv && source .venv/bin/activate
+pip install click rich pandas httpx
 ```
 
 ## 使用
 
 ```bash
-# 默认参数（BTCUSDT，5/20均线，1小时K线）
-npm start
+# 默认回测（BTCUSDT 5/20 1h + 情绪）
+python -m src.main run
 
 # 自定义参数
-npm start BTCUSDT 5 20 1h       # 交易对 短均线 长均线 周期
-npm start ETHUSDT 10 30 4h      # ETH 10/30 均线 4小时K线
-npm start BTCUSDT 7 25 1d 1000  # 拉取1000根日线
+python -m src.main run ETHUSDT 10 30 4h 500
+
+# 关闭情绪模块，纯技术指标
+python -m src.main run BTCUSDT --no-sentiment
+
+# 调整信号阈值（越小越敏感）
+python -m src.main run BTCUSDT --threshold 0.2
+
+# 实时价格
+python -m src.main price BTCUSDT
+
+# 查看市场情绪
+python -m src.main sentiment
 ```
 
-参数说明：
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| symbol | BTCUSDT | 交易对 |
-| shortPeriod | 5 | 短均线周期 |
-| longPeriod | 20 | 长均线周期 |
-| interval | 1h | K线周期（1m/5m/15m/1h/4h/1d） |
-| limit | 500 | 拉取K线数量（最大1000） |
+## 信号引擎
 
-## 策略说明
+不再只用均线交叉，改为 **四维加权融合**：
 
-**均线交叉策略（MA Crossover）**
+| 信号源 | 默认权重 | 说明 |
+|--------|----------|------|
+| 均线趋势 | 30% | 金叉/死叉 + 趋势方向 |
+| RSI | 20% | 超卖(<30)偏多，超买(>70)偏空 |
+| MACD | 25% | 柱状图方向变化 |
+| 市场情绪 | 25% | 恐惧→逆势买入，贪婪→谨慎卖出 |
 
-```
-金叉（Golden Cross）：短均线上穿长均线 → 买入
-死叉（Death Cross）：短均线下穿长均线 → 卖出
-```
+综合分数超过 ±0.3 触发买卖信号。
 
-- 短均线 SMA(N=5) — 对价格变化更敏感
-- 长均线 SMA(N=20) — 代表中长期趋势
-- 交叉点 = 趋势可能反转的信号
+## 回测特性
 
-## 回测逻辑
-
-- 初始资金：$10,000
-- 每次满仓买卖（买入=全部资金换币，卖出=全部币换回资金）
-- 暂忽略手续费（初版）
-- 最后未平仓自动强制卖出
-
-## 报告输出
-
-```
-══════════════════════════════════════════════════
-  MA 交叉策略回测报告
-  交易对: BTCUSDT        周期: 1h
-  短均线: 5              长均线: 20
-══════════════════════════════════════════════════
-
-  ── 资金统计 ──
-  初始资金: $10,000.00
-  最终资金: $10,083.50
-  总收益率: +0.83%
-  最大回撤: -0.97%
-
-  ── 交易统计 ──
-  交易次数: 30 (15 次完整买卖)
-  胜率:     46.7%
-
-  ── 基准对比 ──
-  买入持有: +2.67%
-  策略超额: -1.84%
-
-  ── 交易明细 ──
-  2026-05-07 18:35  买 ↑  90661.23 × 0.1103 = $10,000.00
-  ...
-
-  ── 价格走势 ──
-  92371┤                                    ────
-        ┤               ──B──  ───S       ──
-  90025┤──                                  ──
-        └─────────────────────────────────────→ 时间
-         B=买入  S=卖出
-══════════════════════════════════════════════════
-```
+- 初始资金 $10,000，满仓交易
+- 手续费 0.1%，滑点 0.05%
+- 夏普比率、最大回撤、买入持有对比
+- 持仓期间情绪均值追踪
 
 ## 项目结构
 
 ```
 src/
-├── index.ts         # 主入口，命令行参数解析
-├── fetcher.ts       # 数据拉取（Binance API + 本地缓存）
-├── strategy.ts      # 策略模块（均线交叉信号）
-├── backtester.ts    # 回测引擎（资金模拟）
-└── reporter.ts      # 报告生成（ASCII可视化）
-data/                # K线数据缓存（gitignore）
+├── main.py           # CLI 入口 (click)
+├── fetcher.py        # Binance 数据拉取 + 实时价格
+├── sentiment.py      # 市场情绪 (Fear & Greed Index)
+├── indicators.py     # SMA/RSI/MACD 技术指标
+├── signals.py        # 多维信号融合引擎
+├── backtester.py     # 回测引擎（含费用/滑点）
+├── reporter.py       # 富文本报告 (rich)
+└── ml/               # ML 预测模型（开发中）
+data/                 # K 线缓存
 ```
 
 ## 技术栈
 
-- TypeScript + Node.js
-- Binance Public API（无需认证）
-- 零依赖（仅使用 Node 内置 fetch/fs）
-
-## 下一步
-
-- [ ] 支持多种策略（RSI、MACD、布林带）
-- [ ] 手续费和滑点模拟
-- [ ] 参数优化（网格搜索最佳均线组合）
-- [ ] 多交易对同时回测
-- [ ] HTML 报告导出
+- Python 3.11+
+- pandas, rich, click, httpx
+- Binance Public API + Alternative.me Fear & Greed
 
 ## License
 
