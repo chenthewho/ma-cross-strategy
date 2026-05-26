@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ma_cross
+      POSTGRES_PASSWORD: ma_cross_dev
+      POSTGRES_DB: quantsaas
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  saas:
+    build:
+      context: .
+      dockerfile: saas.Dockerfile
+    environment:
+      APP_ROLE: dev
+      DB_PASSWORD: ma_cross_dev
+      JWT_SECRET: dev-secret-key
+    ports: ["8080:8080"]
+    depends_on: [postgres, redis]
+
+volumes:
+  pgdata:
