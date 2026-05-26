@@ -1,14 +1,23 @@
-FROM golang:1.23-alpine AS builder
+# Stage 1: Build
+FROM golang:1.21-alpine AS builder
+
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 go build -o /saas ./cmd/saas/
 
-FROM alpine:3.21
-RUN apk add --no-cache ca-certificates tzdata
-COPY --from=builder /saas /usr/local/bin/saas
-COPY config.yaml /etc/quantsaas/config.yaml
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/saas ./cmd/saas/main.go
+
+# Stage 2: Runtime
+FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates tzdata
+ENV TZ=Asia/Shanghai
+
+WORKDIR /app
+COPY --from=builder /app/bin/saas .
+COPY config.saas.yaml ./config.yaml
+
 EXPOSE 8080
-ENV CONFIG_PATH=/etc/quantsaas/config.yaml
-CMD ["saas"]
+
+ENTRYPOINT ["./saas"]

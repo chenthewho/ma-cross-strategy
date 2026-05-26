@@ -1,27 +1,48 @@
+version: "3.8"
+
 services:
   postgres:
     image: postgres:15
+    container_name: quantsaas-postgres
     environment:
-      POSTGRES_USER: ma_cross
-      POSTGRES_PASSWORD: ma_cross_dev
       POSTGRES_DB: quantsaas
-    ports: ["5432:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
+      POSTGRES_USER: quantsaas
+      POSTGRES_PASSWORD: quantsaas_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantsaas -d quantsaas"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    container_name: quantsaas-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   saas:
     build:
       context: .
       dockerfile: saas.Dockerfile
+    container_name: quantsaas-saas
     environment:
       APP_ROLE: dev
-      DB_PASSWORD: ma_cross_dev
-      JWT_SECRET: dev-secret-key
-    ports: ["8080:8080"]
-    depends_on: [postgres, redis]
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   pgdata:

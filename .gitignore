@@ -12,6 +12,7 @@ data/
 config.agent.yaml
 *.env
 bin/
+*.exe
 
 # Frontend build artifacts
 web-frontend/dist/
