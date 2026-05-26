@@ -1,0 +1,28 @@
+# QuantSaaS Configuration Template
+# All secret fields should be injected via environment variables, not hardcoded here.
+
+app_role: "dev"  # saas | lab | dev
+
+server:
+  port: 8080
+  mode: "debug"  # debug | release
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "ma_cross"
+  password: ""  # Set via DB_PASSWORD env var
+  dbname: "quantsaas"
+  sslmode: "disable"
+
+redis:
+  addr: "localhost:6379"
+  db: 0
+
+jwt:
+  secret: ""  # Set via JWT_SECRET env var
+  expire_hours: 72
+
+ai:
+  claude_api_key: ""       # Set via ANTHROPIC_API_KEY env var
+  finance_news_api_key: ""  # Set via FINANCE_NEWS_API_KEY env var
