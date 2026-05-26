@@ -1,0 +1,11 @@
+{
+  "rules": [
+    "Always use float64 for financial data, never float32.",
+    "All exported functions must have godoc comments.",
+    "Use table-driven tests with the standard testing package.",
+    "HTTP calls must accept context.Context for timeout support.",
+    "Read CLAUDE.md and AGENTS.md at the start of each session.",
+    "Keep Python src/ as reference until full migration is complete.",
+    "Reply in Chinese unless instructed otherwise."
+  ]
+}
