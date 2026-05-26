@@ -4,10 +4,10 @@ import (
 	"github.com/chenthewho/ma-cross-strategy/internal/quant"
 )
 
-// ComputeMicro is a thin wrapper around quant.ComputeMicroDecision.
-// It maps strategy-level Chromosome fields onto the engine's
-// MicroDecisionInput and converts the MicroDecisionOutput into a
-// *quant.MicroIntent (or nil if no action is required).
+// ComputeMicro wraps quant.ComputeMicroDecision for the golden_cross strategy.
+// It builds the MicroDecisionInput from the strategy-level parameters and
+// delegates to the quant engine.  The quant engine returns a MicroDecisionOutput;
+// this wrapper converts it to a MicroIntent that the backtest can execute.
 func ComputeMicro(
 	closes []float64,
 	currentPrice float64,
@@ -16,7 +16,11 @@ func ComputeMicro(
 	marketState quant.MarketState,
 	chromo quant.Chromosome,
 ) *quant.MicroIntent {
-	in := quant.MicroDecisionInput{
+	if totalEquity <= 0 || currentPrice <= 0 {
+		return nil
+	}
+
+	input := quant.MicroDecisionInput{
 		Closes:             closes,
 		CurrentPrice:       currentPrice,
 		TotalEquity:        totalEquity,
@@ -33,20 +37,23 @@ func ComputeMicro(
 		EMALong:            chromo.EMALongBars,
 	}
 
-	out := quant.ComputeMicroDecision(in)
+	out := quant.ComputeMicroDecision(input)
+
 	if out.OrderCNY == 0 {
 		return nil
 	}
 
 	action := "BUY"
+	amountCNY := out.OrderCNY
 	if out.OrderCNY < 0 {
 		action = "SELL"
+		amountCNY = -out.OrderCNY
 	}
 
 	return &quant.MicroIntent{
 		Action:    action,
-		AmountCNY: out.OrderCNY,
+		AmountCNY: amountCNY,
 		Engine:    "MICRO",
-		LotType:   string(quant.LotFloating),
+		LotType:   "FLOATING",
 	}
 }

@@ -6,9 +6,9 @@ import (
 	"github.com/chenthewho/ma-cross-strategy/internal/quant"
 )
 
-// ComputeMacro is a thin wrapper around quant.ComputeMacroDecision.
-// It translates strategy-level parameters (Chromosome, SpawnPoint, close
-// sequence) into the quant.MacroDecisionInput expected by the engine.
+// ComputeMacro wraps quant.ComputeMacroDecision for the golden_cross strategy.
+// It builds the MacroDecisionInput from the strategy-level parameters and
+// delegates to the quant engine.
 func ComputeMacro(
 	closes []float64,
 	timestamps []int64,
@@ -21,27 +21,27 @@ func ComputeMacro(
 	chromo quant.Chromosome,
 	spawn quant.SpawnPoint,
 ) *quant.MacroIntent {
-	// Compute long EMA for price-deviation calculation.
-	emaLong := quant.EMA(closes, chromo.EMALongBars)
-	if math.IsNaN(emaLong) {
+	if totalEquity <= 0 || currentPrice <= 0 {
 		return nil
-	}
-
-	priceDeviation := (currentPrice - emaLong) / emaLong
-
-	// Days since last macro action.
-	daysSinceLastMacro := 0
-	if runtime.LastMacroAction > 0 && len(timestamps) > 0 {
-		lastTs := timestamps[len(timestamps)-1]
-		daysSinceLastMacro = int((lastTs - runtime.LastMacroAction) / (24 * 3600 * 1000))
-	} else {
-		// Never acted — force eligibility.
-		daysSinceLastMacro = chromo.MacroIntervalDays + 1
 	}
 
 	deadHoldValue := deadHold * currentPrice
 
-	in := quant.MacroDecisionInput{
+	// Price deviation: (Price - EMA_long) / EMA_long
+	var priceDeviation float64
+	emaLong := quant.EMA(closes, chromo.EMALongBars)
+	if !math.IsNaN(emaLong) && emaLong > 0 {
+		priceDeviation = (currentPrice - emaLong) / emaLong
+	}
+
+	// Days since last macro action
+	daysSinceLastMacro := 0
+	if runtime.LastMacroAction > 0 && len(timestamps) > 0 {
+		lastBar := timestamps[len(timestamps)-1]
+		daysSinceLastMacro = int((lastBar - runtime.LastMacroAction) / (24 * 3600 * 1000))
+	}
+
+	input := quant.MacroDecisionInput{
 		TotalEquity:          totalEquity,
 		SpendableCNY:         spendableCNY,
 		CurrentPrice:         currentPrice,
@@ -56,5 +56,5 @@ func ComputeMacro(
 		MacroAccelMultiplier: chromo.MacroAccelMultiplier,
 	}
 
-	return quant.ComputeMacroDecision(in)
+	return quant.ComputeMacroDecision(input)
 }

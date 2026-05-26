@@ -1,117 +1,118 @@
 package golden_cross
 
 import (
+	"math"
+
 	"github.com/chenthewho/ma-cross-strategy/internal/quant"
 )
 
-// Step is the single entry point for the golden_cross strategy.
-// It implements the full 8-step pipeline described in doc/策略数学引擎.md:
-//
-//  1. Data sufficiency check
-//  2. Calculate TotalEquity / SpendableCNY / CurrentMicroWeight
-//  3. Market state perception (quant.ComputeMarketState)
-//  4. Macro engine decision (macro.go wrapper)
-//  5. Micro engine decision (micro.go wrapper)
-//  6. Dead-hold release rules (dead_release.go wrapper)
-//  7. Update RuntimeState
-//  8. Assemble and return StrategyOutput
-//
-// Step is a pure function: no HTTP, SQL, file I/O, or external side effects.
-// Backtest and live trading call the same implementation — there are no
-// isBacktest branches.
+// Step is the strategy's sole entry point. Pure function, no I/O.
 func Step(input quant.StrategyInput, params Params) quant.StrategyOutput {
-	chromo := params.Chromosome
+	c := params.Chromosome
+	sp := params.SpawnPoint
 
-	// ── 1. Data sufficiency ──────────────────────────────────────────
-	minBars := max(chromo.EMAShortBars, chromo.EMALongBars, 21)
+	// ── 1. Data sufficiency ──
+	minBars := max(c.EMAShortBars, c.EMALongBars, quant.MarketEMALongBars)
 	if len(input.Closes) < minBars {
-		return emptyOutput(input.Runtime)
+		return quant.StrategyOutput{
+			MarketState: quant.MarketState{State: quant.MarketQuiet, IsQuiet: true,
+				TimeDilationMultiplier: 1.0, BetaMultiplier: 1.0},
+			NewRuntime: input.Runtime,
+		}
 	}
 
-	// ── 2. Core calculations ─────────────────────────────────────────
+	// ── 2. Core metrics ──
 	totalEquity := input.Portfolio.TotalEquity
-
-	spendableCNY := 0.0
-	if totalEquity > 0 {
-		spendableCNY = max(0, input.Portfolio.CNYBalance-totalEquity*chromo.MicroReservePct)
-	}
-
+	spendableCNY := math.Max(0, input.Portfolio.CNYBalance-totalEquity*c.MicroReservePct)
 	currentMicroWeight := 0.0
-	if totalEquity > 0 && input.CurrentPrice > 0 {
+	if totalEquity > 0 {
 		currentMicroWeight = input.Portfolio.FloatHold * input.CurrentPrice / totalEquity
 	}
 
-	// ── 3. Market state ──────────────────────────────────────────────
+	// ── 3. Market state ──
 	marketState := quant.ComputeMarketState(input.Closes, input.Timestamps)
 
-	// ── 4. Macro engine ──────────────────────────────────────────────
-	macroIntent := ComputeMacro(
-		input.Closes,
-		input.Timestamps,
-		input.CurrentPrice,
-		totalEquity,
-		spendableCNY,
-		input.Portfolio.DeadHold,
-		marketState,
-		input.Runtime,
-		chromo,
-		params.SpawnPoint,
-	)
-
-	// ── 5. Micro engine ──────────────────────────────────────────────
-	microIntent := ComputeMicro(
-		input.Closes,
-		input.CurrentPrice,
-		totalEquity,
-		currentMicroWeight,
-		marketState,
-		chromo,
-	)
-
-	// ── 6. Dead release ──────────────────────────────────────────────
-	currentTime := int64(0)
-	if len(input.Timestamps) > 0 {
-		currentTime = input.Timestamps[len(input.Timestamps)-1]
+	// ── 4. Macro engine ──
+	var macroIntent *quant.MacroIntent
+	if spendableCNY >= 100 {
+		emaLong := quant.EMA(input.Closes, c.EMALongBars)
+		priceDeviation := 0.0
+		if !math.IsNaN(emaLong) && emaLong > 0 {
+			priceDeviation = (input.CurrentPrice - emaLong) / emaLong
+		}
+		daysSince := 0
+		if input.Runtime.LastMacroAction > 0 {
+			daysSince = int((input.Timestamps[len(input.Timestamps)-1] - input.Runtime.LastMacroAction) / 86400000)
+		}
+		macroIntent = quant.ComputeMacroDecision(quant.MacroDecisionInput{
+			TotalEquity:          totalEquity,
+			SpendableCNY:         spendableCNY,
+			CurrentPrice:         input.CurrentPrice,
+			DeadHold:             input.Portfolio.DeadHold,
+			DeadHoldValue:        input.Portfolio.DeadHold * input.CurrentPrice,
+			MonthlyInject:        sp.Policy.MonthlyInject,
+			TimeDilation:         marketState.TimeDilationMultiplier,
+			PriceDeviation:       priceDeviation,
+			DaysSinceLastMacro:   daysSince,
+			MacroIntervalDays:    c.MacroIntervalDays,
+			MacroAccelThreshold:  c.MacroAccelThreshold,
+			MacroAccelMultiplier: c.MacroAccelMultiplier,
+		})
 	}
-	releaseIntent := ComputeDeadRelease(
-		input.Portfolio.DeadHoldLots,
-		currentTime,
-		input.CurrentPrice,
-		totalEquity,
-		input.Portfolio.FloatHold,
-		microIntent,
-		chromo,
-	)
 
-	// ── 7. Update RuntimeState ───────────────────────────────────────
+	// ── 5. Micro engine ──
+	var microIntent *quant.MicroIntent
+	microOut := quant.ComputeMicroDecision(quant.MicroDecisionInput{
+		Closes: input.Closes, CurrentPrice: input.CurrentPrice,
+		TotalEquity: totalEquity, CurrentMicroWeight: currentMicroWeight,
+		IsQuiet: marketState.IsQuiet, BetaMultiplier: marketState.BetaMultiplier,
+		A: c.A, B: c.B, C: c.C, Beta: c.Beta, Gamma: c.Gamma,
+		SigmaFloor: c.SigmaFloor, EMAShort: c.EMAShortBars, EMALong: c.EMALongBars,
+	})
+	if microOut.OrderCNY != 0 {
+		act := "BUY"
+		amt := microOut.OrderCNY
+		if amt < 0 {
+			act = "SELL"
+			amt = -amt
+		}
+		if act == "BUY" {
+			amt = math.Min(amt, spendableCNY)
+		}
+		if amt >= 100 {
+			microIntent = &quant.MicroIntent{Action: act, AmountCNY: quant.RoundToCNY(amt), Engine: "MICRO", LotType: "FLOATING"}
+		}
+	}
+
+	// ── 6. Dead hold release ──
+	var releaseIntent *quant.ReleaseIntent
+	if input.Portfolio.DeadHold > 0 && len(input.Portfolio.DeadHoldLots) > 0 {
+		lastBar := input.Timestamps[len(input.Timestamps)-1]
+		_, softAmt := quant.SoftRelease(input.Portfolio.DeadHoldLots, lastBar, input.CurrentPrice,
+			totalEquity, c.SoftReleaseMonths, c.MaxSoftReleasePct, c.DeadHoldTarget)
+		if softAmt > 0 {
+			releaseIntent = &quant.ReleaseIntent{ReleaseType: "SOFT", ReleaseAmount: softAmt, Reason: "aged_dead_hold"}
+		}
+		if microIntent != nil && microIntent.Action == "SELL" {
+			needShares := microIntent.AmountCNY / input.CurrentPrice
+			if quant.TotalFloatHold(input.Portfolio.DeadHoldLots) < needShares {
+				_, hardAmt := quant.HardRelease(input.Portfolio.DeadHoldLots, needShares)
+				if hardAmt > 0 {
+					releaseIntent = &quant.ReleaseIntent{ReleaseType: "HARD", ReleaseAmount: hardAmt, Reason: "micro_sell_shortfall"}
+				}
+			}
+		}
+	}
+
+	// ── 7. Update runtime ──
 	newRuntime := input.Runtime
-	if len(input.Timestamps) > 0 {
-		newRuntime.LastProcessedBar = input.Timestamps[len(input.Timestamps)-1]
-	}
-	if macroIntent != nil && len(input.Timestamps) > 0 {
+	newRuntime.LastProcessedBar = input.Timestamps[len(input.Timestamps)-1]
+	if macroIntent != nil {
 		newRuntime.LastMacroAction = input.Timestamps[len(input.Timestamps)-1]
 	}
 
-	// ── 8. Assemble and return ───────────────────────────────────────
 	return quant.StrategyOutput{
-		MacroIntent:   macroIntent,
-		MicroIntent:   microIntent,
-		ReleaseIntent: releaseIntent,
-		MarketState:   marketState,
-		NewRuntime:    newRuntime,
-	}
-}
-
-// emptyOutput returns a safe zero-value StrategyOutput when data is
-// insufficient for any decision-making.
-func emptyOutput(runtime quant.RuntimeState) quant.StrategyOutput {
-	return quant.StrategyOutput{
-		MarketState: quant.MarketState{
-			State:                  quant.MarketQuiet,
-			TimeDilationMultiplier: 1.0,
-			BetaMultiplier:         1.0,
-			IsQuiet:                true,
-		},
-		NewRuntime: runtime,
+		MacroIntent: macroIntent, MicroIntent: microIntent,
+		ReleaseIntent: releaseIntent, MarketState: marketState, NewRuntime: newRuntime,
 	}
 }

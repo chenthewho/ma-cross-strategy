@@ -1,23 +1,17 @@
 package golden_cross
 
 import (
-	"math"
-
 	"github.com/chenthewho/ma-cross-strategy/internal/quant"
 )
 
-// ComputeDeadRelease is a thin wrapper around quant.SoftRelease and
-// quant.HardRelease.  It orchestrates the two-phase dead-hold release
-// logic and returns a single ReleaseIntent (or nil).
+// ComputeDeadRelease determines whether any soft or hard release should occur.
 //
-// Phase 1 — SoftRelease: aged dead-hold lots that exceed the target
-// threshold are converted to floating.
+// Soft release: when DeadHold exceeds the target threshold AND some lots have
+// aged past SoftReleaseMonths, release a capped fraction of aged dead hold to
+// FLOATING.
 //
-// Phase 2 — HardRelease: if the micro engine has produced a SELL that
-// exceeds available FloatHold, additional dead-hold lots are released
-// to cover the gap.
-//
-// The function copies input lots to avoid mutating the caller's data.
+// Hard release: when the micro engine wants to sell but FloatHold is
+// insufficient, draw from non-cold-sealed DEAD_STACK lots to fill the gap.
 func ComputeDeadRelease(
 	lots []quant.SpotLot,
 	currentTime int64,
@@ -27,37 +21,54 @@ func ComputeDeadRelease(
 	microIntent *quant.MicroIntent,
 	chromo quant.Chromosome,
 ) *quant.ReleaseIntent {
-	// Copy to preserve caller immutability.
-	lotsCopy := make([]quant.SpotLot, len(lots))
-	copy(lotsCopy, lots)
+	if totalEquity <= 0 || price <= 0 {
+		return nil
+	}
 
-	// ── Phase 1: soft release ──
-	newLots, softAmount := quant.SoftRelease(
-		lotsCopy, currentTime, price, totalEquity,
-		chromo.SoftReleaseMonths,
-		chromo.MaxSoftReleasePct,
-		chromo.DeadHoldTarget,
-	)
-	if softAmount > 0 {
-		return &quant.ReleaseIntent{
-			ReleaseType:   "SOFT",
-			ReleaseAmount: softAmount,
-			Reason:        "aged dead hold soft release",
+	// ── Soft release check ──
+	totalDead := quant.TotalDeadHold(lots)
+	targetAmount := chromo.DeadHoldTarget * totalEquity / price
+
+	excess := totalDead - targetAmount
+	if excess > 0 && chromo.SoftReleaseMonths > 0 {
+		thresholdMs := currentTime - int64(chromo.SoftReleaseMonths)*30*24*3600*1000
+
+		agedAmount := 0.0
+		for _, l := range lots {
+			if l.LotType == quant.LotDeadStack && !l.IsColdSealed && l.CreatedAt < thresholdMs {
+				agedAmount += l.Amount
+			}
+		}
+
+		if agedAmount > 0 {
+			releaseAmount := min(excess, agedAmount, totalDead*chromo.MaxSoftReleasePct)
+			if releaseAmount > 0 {
+				return &quant.ReleaseIntent{
+					ReleaseType:   "SOFT",
+					ReleaseAmount: releaseAmount,
+					Reason:        "dead hold exceeds target, aged lots available",
+				}
+			}
 		}
 	}
 
-	// ── Phase 2: hard release ──
+	// ── Hard release check ──
 	if microIntent != nil && microIntent.Action == "SELL" {
-		// Convert sell CNY to required shares.
-		neededShares := math.Abs(microIntent.AmountCNY) / price
-		gap := neededShares - floatHold
-		if gap > 0 {
-			_, hardAmount := quant.HardRelease(newLots, gap)
-			if hardAmount > 0 {
+		neededShares := microIntent.AmountCNY / price
+		if neededShares > floatHold {
+			gap := neededShares - floatHold
+			releasable := 0.0
+			for _, l := range lots {
+				if l.LotType == quant.LotDeadStack && !l.IsColdSealed {
+					releasable += l.Amount
+				}
+			}
+			hardRelease := min(gap, releasable)
+			if hardRelease > 0 {
 				return &quant.ReleaseIntent{
 					ReleaseType:   "HARD",
-					ReleaseAmount: hardAmount,
-					Reason:        "hard release to cover micro sell shortfall",
+					ReleaseAmount: hardRelease,
+					Reason:        "float hold insufficient for sell, drawing from dead hold",
 				}
 			}
 		}

@@ -228,3 +228,17 @@ func DecodeParamPack(raw []byte) ParamPack {
 	}
 	return pp
 }
+
+// GeneStep returns per-field mutation step sizes for Gaussian mutation.
+func GeneStep() map[string]float64 {
+	return map[string]float64{
+		"A": 0.1, "B": 0.1, "C": 0.1,
+		"Beta": 0.1, "Gamma": 0.05,
+		"SigmaFloor": 0.001,
+		"MacroAccelThreshold": 0.01,
+		"MacroAccelMultiplier": 0.1,
+		"MaxSoftReleasePct": 0.05,
+		"DeadHoldTarget": 0.05,
+		"MicroReservePct": 0.05,
+	}
+}
