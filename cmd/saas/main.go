@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -81,6 +82,22 @@ func main() {
 	router.Use(gin.Recovery())
 
 	api.SetupRoutes(router, db, hub, tokenSvc, cfg.AppRole)
+
+	// ── 9a. Serve frontend static files (SPA fallback) ────────
+	router.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") || strings.HasPrefix(c.Request.URL.Path, "/ws/") {
+			c.Next()
+			return
+		}
+		filePath := "./web-frontend/dist" + c.Request.URL.Path
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			c.File("./web-frontend/dist/index.html")
+			c.Abort()
+			return
+		}
+		c.File(filePath)
+		c.Abort()
+	})
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
