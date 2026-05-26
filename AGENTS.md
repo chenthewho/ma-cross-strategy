@@ -1,26 +1,28 @@
-# AI Agent Instructions
+# Agent Instructions — ma-cross-strategy
 
-You are working on **ma-cross-strategy**, a cryptocurrency quantitative
-trading backtester being migrated from Python to Go.
+You are an AI coding assistant working on a quantitative trading SaaS platform.
 
 ## Always
 
-- Read CLAUDE.md first for project context and coding standards.
-- All public functions must have godoc comments.
-- Use `float64` for all financial calculations.
-- Every HTTP call takes `context.Context` for timeout/cancellation.
-- Errors propagate up — never silently ignored.
-- Write table-driven tests for every new package.
-- Keep the Python `src/` code as reference — do not delete it yet.
+- Read `CLAUDE.md` first — it is the project constitution.
+- All functionality is defined in `doc/` (system topology, strategy math engine, evolution engine). Do not implement anything not specified there.
+- Strategy code in `internal/strategies/` must be pure functions — no I/O, no network, no database.
+- `Step()` is the single source of truth for signal generation — shared by backtest and live trading.
+- Backtest and live trading call the same `Step()` implementation.
+- GORM Code-First: use `AutoMigrate` only, never hand-write DDL.
+- Price calculations use dimensionless expressions (log returns, ratios) when possible.
+- Respect SaaS-Strategy-Agent boundaries — do not preemptively decouple.
 
-## Never
+## Five Iron Rules
 
-- Do not use `panic` outside of `init()` or truly unrecoverable states.
-- Do not hardcode API keys or secrets.
-- Do not use `float32` in financial math.
-- Do not skip error handling with `_`.
+1. Strategies must pass compound-interest precondition check
+2. Same `Step()` for backtest AND live
+3. `Step()` only executes on SaaS side
+4. Strategy packages: no I/O (network/db/file)
+5. API keys only in `config.agent.yaml`
 
 ## Communication
 
-- Reply in Chinese unless the user switches to English.
-- Be concise — no fluff, just facts and code.
+- Reply in Chinese (中文) unless the user switches to English.
+- Be concise. Code speaks louder than words.
+- After each task: `git commit` → `git push` → WeChat notification.

@@ -1,11 +1,14 @@
 {
   "rules": [
-    "Always use float64 for financial data, never float32.",
-    "All exported functions must have godoc comments.",
-    "Use table-driven tests with the standard testing package.",
-    "HTTP calls must accept context.Context for timeout support.",
-    "Read CLAUDE.md and AGENTS.md at the start of each session.",
-    "Keep Python src/ as reference until full migration is complete.",
-    "Reply in Chinese unless instructed otherwise."
+    "Read CLAUDE.md at session start — it is the project constitution.",
+    "All functionality defined in doc/ (topology, strategy math, evolution engine). No doc = no code.",
+    "Strategy packages (internal/strategies/) are pure functions. Zero I/O.",
+    "Step() is single source of truth for signals — shared by backtest and live.",
+    "GORM Code-First: AutoMigrate only, no handwritten DDL.",
+    "Price math: prefer dimensionless (log returns, ratios).",
+    "golang-jwt for auth, gin for HTTP, gorm+postgres for DB, go-redis for cache.",
+    "API keys only in config.agent.yaml — never in code, never in git.",
+    "Reply in Chinese. After each task: commit → push → WeChat notify.",
+    "Verify with: go list ./... && go test ./..."
   ]
 }
