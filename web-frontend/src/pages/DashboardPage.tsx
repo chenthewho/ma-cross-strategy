@@ -190,17 +190,16 @@ export default function DashboardPage() {
                 {trades.length > 0 ? (
                   <div className="-mx-4 lg:-mx-6">
                     {/* 表头 */}
-                    <div className="px-4 lg:px-6 py-2 grid grid-cols-[auto_auto_1fr_1fr_1fr_auto] gap-3 text-[10px] lg:text-xs text-claude-text-muted border-b border-claude-border">
-                      <span className="w-10">方向</span>
-                      <span className="w-16">标的</span>
+                    <div className="px-4 lg:px-6 py-2 grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-3 text-[10px] lg:text-xs text-claude-text-muted border-b border-claude-border">
+                      <span className="w-12">方向</span>
                       <span className="text-right">数量</span>
                       <span className="text-right">单价</span>
                       <span className="text-right">成交金额</span>
                       <span className="w-14 text-right">时间</span>
                     </div>
                     {trades.slice(0, 20).map((tr: TradeRecord) => (
-                      <div key={tr.id} className="px-4 lg:px-6 py-2.5 grid grid-cols-[auto_auto_1fr_1fr_1fr_auto] gap-3 items-center text-xs lg:text-sm border-b border-claude-border last:border-0">
-                        <span className="w-10">
+                      <div key={tr.id} className="px-4 lg:px-6 py-2.5 grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-3 items-center text-xs lg:text-sm border-b border-claude-border last:border-0">
+                        <span className="w-12">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] lg:text-xs font-medium ${
                             tr.action === 'BUY' 
                               ? 'bg-green-50 text-green-600' 
@@ -208,9 +207,6 @@ export default function DashboardPage() {
                           }`}>
                             {tr.action === 'BUY' ? '买入' : '卖出'}
                           </span>
-                        </span>
-                        <span className="w-16 text-claude-text-muted font-mono text-[10px] lg:text-xs truncate" title={tr.symbol}>
-                          {tr.symbol}
                         </span>
                         <span className="font-mono text-claude-text text-right">
                           {tr.filled_qty > 0 ? Number(tr.filled_qty).toFixed(4) : '--'}
