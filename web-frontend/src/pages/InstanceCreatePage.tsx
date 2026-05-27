@@ -20,8 +20,7 @@ export default function InstanceCreatePage() {
   const [risk, setRisk] = useState('30')
 
   const handleSubmit = async () => {
-    const template = strategyCatalog.find((s) => s.id === templateId)
-    const symbol = template?.symbol || templateId
+    const symbol = 'BTCUSDT'
     try {
       const res = await createInstance({
         template_id: templateId,

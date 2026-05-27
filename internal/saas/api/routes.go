@@ -234,7 +234,7 @@ func handleCreateInstance(db *store.DB) gin.HandlerFunc {
 		var req struct {
 			TemplateID       string  `json:"template_id" binding:"required"`
 			Name             string  `json:"name" binding:"required"`
-			Symbol           string  `json:"symbol" binding:"required"`
+			Symbol           string  `json:"symbol"`
 			InitialCapital   float64 `json:"initial_capital"`
 			MonthlyInject    float64 `json:"monthly_inject"`
 			ColdSealedAmount float64 `json:"cold_sealed_amount"`
@@ -242,6 +242,9 @@ func handleCreateInstance(db *store.DB) gin.HandlerFunc {
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
+		}
+		if req.Symbol == "" {
+			req.Symbol = "BTCUSDT"
 		}
 		inst := store.StrategyInstance{
 			UserID: userID, TemplateID: req.TemplateID,
