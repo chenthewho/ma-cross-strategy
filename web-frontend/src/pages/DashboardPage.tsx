@@ -5,7 +5,7 @@ import { Plus, Play, Pause } from 'lucide-react'
 import Card from '@/components/Card'
 import StatusBadge from '@/components/StatusBadge'
 import PnLChartSkeleton from '@/components/skeletons/PnLChartSkeleton'
-import { fetchInstances, updateInstanceStatus, type Instance } from '@/shared/services/instances'
+import { fetchInstances, updateInstanceStatus, fetchTrades, type Instance, type TradeRecord } from '@/shared/services/instances'
 import { fetchEquitySnapshots } from '@/shared/services/dashboard'
 import { useI18n } from '@/i18n/I18nProvider'
 
@@ -24,6 +24,13 @@ export default function DashboardPage() {
   const { data: snapshots = [], isLoading: chartLoading } = useQuery({
     queryKey: ['equity', selectedId],
     queryFn: () => selectedId ? fetchEquitySnapshots(selectedId) : Promise.resolve([]),
+    enabled: !!selectedId,
+    refetchInterval: 60000,
+  })
+
+  const { data: trades = [] } = useQuery({
+    queryKey: ['trades', selectedId],
+    queryFn: () => selectedId ? fetchTrades(selectedId) : Promise.resolve([]),
     enabled: !!selectedId,
     refetchInterval: 60000,
   })
@@ -172,6 +179,44 @@ export default function DashboardPage() {
                   <div><span className="text-claude-text-muted">策略模板</span><p className="font-mono text-claude-text mt-0.5">{selected.template_id}</p></div>
                   <div><span className="text-claude-text-muted">当前状态</span><p className="font-mono mt-0.5"><StatusBadge status={selected.status} /></p></div>
                 </div>
+              </Card>
+
+              {/* Trade history */}
+              <Card className="p-4 lg:p-6">
+                <h4 className="text-sm font-medium text-claude-text-secondary mb-3">
+                  交易记录
+                  {trades.length > 0 && <span className="ml-2 text-claude-text-muted font-normal">({trades.length} 笔)</span>}
+                </h4>
+                {trades.length > 0 ? (
+                  <div className="divide-y divide-claude-border -mx-4 lg:-mx-6">
+                    {trades.slice(0, 20).map((tr: TradeRecord) => (
+                      <div key={tr.id} className="px-4 lg:px-6 py-2.5 flex items-center justify-between text-xs lg:text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] lg:text-xs font-medium ${
+                            tr.action === 'BUY' ? 'bg-claude-success-light text-claude-success' : 'bg-claude-danger-light text-claude-danger'
+                          }`}>{tr.action === 'BUY' ? '买入' : '卖出'}</span>
+                          <span className="text-claude-text-muted font-mono text-[10px] lg:text-xs">{tr.engine}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-right">
+                          <div>
+                            <span className="font-mono text-claude-text">
+                              {tr.filled_qty > 0 ? tr.filled_qty.toFixed(1) : '--'}
+                            </span>
+                            <span className="text-claude-text-muted ml-1">@¥{tr.filled_price > 0 ? tr.filled_price.toFixed(4) : '--'}</span>
+                          </div>
+                          <span className={`font-mono font-medium ${tr.action === 'BUY' ? 'text-claude-danger' : 'text-claude-success'}`}>
+                            {tr.action === 'BUY' ? '-' : '+'}¥{((tr.filled_qty || 0) * (tr.filled_price || 0)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                          </span>
+                          <span className="text-claude-text-muted text-[10px] lg:text-xs w-16 text-right">
+                            {new Date(tr.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-claude-text-muted text-center py-4">暂无交易记录，启动实例后将自动记录</p>
+                )}
               </Card>
             </>
           ) : (

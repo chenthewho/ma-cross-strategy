@@ -243,24 +243,51 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 		}
 	}(), "MICRO")
 
-	// Update portfolio balances based on trade intents
-	if output.MacroIntent != nil {
-		if output.MacroIntent.Action == "BUY" {
-			ps.CNYBalance -= output.MacroIntent.AmountCNY
-			ps.FloatHold += output.MacroIntent.AmountCNY
-		} else if output.MacroIntent.Action == "SELL" {
-			ps.CNYBalance += output.MacroIntent.AmountCNY
-			ps.FloatHold -= output.MacroIntent.AmountCNY
+	// Update portfolio balances based on trade intents (capped by available funds)
+	doTrade := func(intent *quant.MacroIntent, engine string) {
+		if intent == nil || intent.AmountCNY == 0 {
+			return
 		}
+		amount := intent.AmountCNY
+		if intent.Action == "BUY" {
+			if amount > ps.CNYBalance {
+				amount = ps.CNYBalance
+			}
+			ps.CNYBalance -= amount
+			ps.FloatHold += amount
+		} else if intent.Action == "SELL" {
+			if amount > ps.FloatHold {
+				amount = ps.FloatHold
+			}
+			ps.CNYBalance += amount
+			ps.FloatHold -= amount
+		}
+		if amount <= 0 {
+			return
+		}
+		// Write TradeRecord
+		qty := amount / currentPrice
+		if currentPrice <= 0 {
+			qty = amount
+		}
+		clientOrderID := fmt.Sprintf("inst%d-%s-%d", instance.ID, engine, ts)
+		m.db.WithContext(ctx).Create(&store.TradeRecord{
+			InstanceID:    instance.ID,
+			ClientOrderID: clientOrderID,
+			Action:        intent.Action,
+			Engine:        engine,
+			Symbol:        instance.Symbol,
+			FilledQty:     qty,
+			FilledPrice:   currentPrice,
+			LotType:       "FLOATING",
+		})
 	}
+	doTrade(output.MacroIntent, "MACRO")
 	if output.MicroIntent != nil {
-		if output.MicroIntent.Action == "BUY" {
-			ps.CNYBalance -= output.MicroIntent.AmountCNY
-			ps.FloatHold += output.MicroIntent.AmountCNY
-		} else if output.MicroIntent.Action == "SELL" {
-			ps.CNYBalance += output.MicroIntent.AmountCNY
-			ps.FloatHold -= output.MicroIntent.AmountCNY
-		}
+		doTrade(&quant.MacroIntent{
+			Action:    output.MicroIntent.Action,
+			AmountCNY: output.MicroIntent.AmountCNY,
+		}, "MICRO")
 	}
 	// Clamp negatives first
 	if ps.CNYBalance < 0 {

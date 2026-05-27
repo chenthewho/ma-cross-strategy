@@ -39,3 +39,21 @@ export async function updateInstanceStatus(id: number, status: string): Promise<
 export async function deleteInstance(id: number): Promise<void> {
   return apiFetch<void>(`/api/v1/instances/${id}`, { method: 'DELETE' })
 }
+
+export interface TradeRecord {
+  id: number
+  instance_id: number
+  action: string
+  engine: string
+  symbol: string
+  filled_qty: number
+  filled_price: number
+  fee: number
+  lot_type: string
+  created_at: string
+}
+
+export async function fetchTrades(instanceId: number): Promise<TradeRecord[]> {
+  const res = await apiFetch<{ trades: TradeRecord[] }>(`/api/v1/instances/${instanceId}/trades`)
+  return res.trades || []
+}
