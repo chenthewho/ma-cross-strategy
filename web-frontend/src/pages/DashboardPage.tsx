@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, Play, Pause } from 'lucide-react'
@@ -156,15 +156,7 @@ export default function DashboardPage() {
               <Card className="p-4 lg:p-6">
                 <h4 className="text-sm font-medium text-claude-text-secondary mb-4">总资产曲线</h4>
                 {chartLoading ? <PnLChartSkeleton /> : snapshots.length > 0 ? (
-                  <div className="h-48 lg:h-64 flex items-end gap-[2px] lg:gap-1">
-                    {snapshots.map((s, i) => {
-                      const maxV = Math.max(...snapshots.map(x => x.total_equity))
-                      const minV = Math.min(...snapshots.map(x => x.total_equity))
-                      const range = maxV - minV || 1
-                      const h = ((s.total_equity - minV) / range) * 80 + 10
-                      return <div key={i} title={`${formatCNY(s.total_equity)}`} className="flex-1 bg-claude-accent/30 rounded-t hover:bg-claude-accent/50 transition-colors" style={{ height: `${h}%` }} />
-                    })}
-                  </div>
+                  <EquityLineChart snapshots={snapshots} />
                 ) : (
                   <p className="text-sm text-claude-text-muted text-center py-8 lg:py-12">暂无净值数据</p>
                 )}
@@ -250,6 +242,116 @@ function StatItem({ label, value, colorClass }: { label: string; value: string; 
 
 function formatCNY(v: number) {
   return '¥' + v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+interface EquityPoint {
+  total_equity: number
+  recorded_at: string
+}
+
+function EquityLineChart({ snapshots }: { snapshots: EquityPoint[] }) {
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [tooltip, setTooltip] = useState<{ i: number; x: number; y: number } | null>(null)
+
+  const W = 600
+  const H = 200
+  const PAD = { top: 20, right: 20, bottom: 30, left: 60 }
+  const innerW = W - PAD.left - PAD.right
+  const innerH = H - PAD.top - PAD.bottom
+
+  const values = snapshots.map(s => s.total_equity)
+  const maxV = Math.max(...values)
+  const minV = Math.min(...values)
+  const range = (maxV - minV) || 1
+
+  const xScale = (i: number) => PAD.left + (i / (snapshots.length - 1)) * innerW
+  const yScale = (v: number) => PAD.top + innerH - ((v - minV) / range) * innerH
+
+  const points = snapshots.map((s, i) => `${xScale(i)},${yScale(s.total_equity)}`).join(' ')
+  const areaPath = `M${xScale(0)},${PAD.top + innerH} L${points} L${xScale(snapshots.length - 1)},${PAD.top + innerH} Z`
+
+  const yTicks = 4
+  const yTickValues = Array.from({ length: yTicks + 1 }, (_, i) => minV + (range * i) / yTicks)
+
+  const handlePointer = useCallback((e: React.PointerEvent) => {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    const scaleX = W / rect.width
+    const mx = (e.clientX - rect.left) * scaleX
+    const idx = Math.round(((mx - PAD.left) / innerW) * (snapshots.length - 1))
+    const i = Math.max(0, Math.min(snapshots.length - 1, idx))
+    setTooltip({ i, x: xScale(i), y: yScale(snapshots[i].total_equity) })
+  }, [snapshots])
+
+  return (
+    <div className="relative select-none touch-none">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-48 lg:h-64"
+        onPointerMove={handlePointer}
+        onPointerDown={handlePointer}
+        onPointerLeave={() => setTooltip(null)}
+      >
+        {/* Grid lines */}
+        {yTickValues.map(v => (
+          <g key={v}>
+            <line x1={PAD.left} y1={yScale(v)} x2={W - PAD.right} y2={yScale(v)} stroke="#e5e0d8" strokeWidth="0.5" />
+            <text x={PAD.left - 6} y={yScale(v) + 4} textAnchor="end" className="text-[8px] fill-[#9ca3af]">
+              ¥{v.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+            </text>
+          </g>
+        ))}
+
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#equityGrad)" opacity="0.3" />
+        <defs>
+          <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#d97706" />
+            <stop offset="100%" stopColor="#d97706" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* Line */}
+        <polyline points={points} fill="none" stroke="#d97706" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+
+        {/* Dot at each point (small, visible on hover area) */}
+        {snapshots.map((s, i) => (
+          <circle key={i} cx={xScale(i)} cy={yScale(s.total_equity)} r="2" fill="#d97706" />
+        ))}
+
+        {/* Tooltip */}
+        {tooltip && (
+          <g>
+            <line x1={tooltip.x} y1={PAD.top} x2={tooltip.x} y2={PAD.top + innerH} stroke="#d97706" strokeWidth="1" strokeDasharray="3 2" opacity="0.6" />
+            <circle cx={tooltip.x} cy={tooltip.y} r="5" fill="white" stroke="#d97706" strokeWidth="2" />
+            <rect x={tooltip.x > W / 2 ? tooltip.x - 130 : tooltip.x + 10} y={PAD.top + 4} width="120" height="28" rx="6" fill="white" stroke="#e5e0d8" strokeWidth="1" />
+            <text
+              x={tooltip.x > W / 2 ? tooltip.x - 70 : tooltip.x + 70}
+              y={PAD.top + 23}
+              textAnchor="middle"
+              className="text-[10px] font-semibold fill-[#d97706]"
+            >
+              ¥{snapshots[tooltip.i].total_equity.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+            </text>
+          </g>
+        )}
+
+        {/* Time axis labels */}
+        {snapshots.length > 1 && (
+          <>
+            <text x={PAD.left} y={H - 6} textAnchor="start" className="text-[8px] fill-[#9ca3af]">
+              {new Date(snapshots[0].recorded_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+            </text>
+            <text x={W - PAD.right} y={H - 6} textAnchor="end" className="text-[8px] fill-[#9ca3af]">
+              {new Date(snapshots[snapshots.length - 1].recorded_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+            </text>
+          </>
+        )}
+      </svg>
+    </div>
+  )
 }
 
 function formatPnL(equity: number, initial: number) {
