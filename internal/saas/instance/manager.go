@@ -5,19 +5,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/chenthewho/ma-cross-strategy/internal/quant"
+	md "github.com/chenthewho/ma-cross-strategy/internal/saas/marketdata"
 	"github.com/chenthewho/ma-cross-strategy/internal/saas/store"
 	gc "github.com/chenthewho/ma-cross-strategy/internal/strategies/golden_cross"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
-// Manager handles instance lifecycle (START/STOP) and tick execution.
+// Manager handles strategy instance lifecycle and tick execution.
 type Manager struct {
 	db     *store.DB
+	market *md.Service
 	logger *zap.Logger
 	// sendCommand is called to deliver TradeCommands to agents via WebSocket.
 	// nil means no agent connectivity (lab/dev mode or agent offline).
@@ -25,8 +26,8 @@ type Manager struct {
 }
 
 // NewManager creates an instance manager.
-func NewManager(db *store.DB, logger *zap.Logger) *Manager {
-	return &Manager{db: db, logger: logger}
+func NewManager(db *store.DB, market *md.Service, logger *zap.Logger) *Manager {
+	return &Manager{db: db, market: market, logger: logger}
 }
 
 // SetCommandSender sets the function used to deliver TradeCommands to agents.
@@ -122,12 +123,12 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 
 	closes := quant.ExtractCloses(bars)
 	timestamps := quant.ExtractTimestamps(bars)
-	currentPrice := 0.0
-	if len(closes) > 0 {
-		// Demo: add random jitter to simulate live market movement (±0.3%)
-		jitter := (rand.Float64() - 0.5) * 0.006 * closes[len(closes)-1]
-		closes[len(closes)-1] += jitter
-		currentPrice = closes[len(closes)-1]
+	currentPrice := m.market.LatestPrice()
+	if currentPrice <= 0 {
+		// Fallback: use last DB close if market data not ready
+		if len(closes) > 0 {
+			currentPrice = closes[len(closes)-1]
+		}
 	}
 
 	// ── 5. Build StrategyInput ──

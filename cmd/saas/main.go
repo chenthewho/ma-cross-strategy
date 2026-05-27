@@ -24,6 +24,7 @@ import (
 	"github.com/chenthewho/ma-cross-strategy/internal/saas/ga"
 	gcEvolvable "github.com/chenthewho/ma-cross-strategy/internal/saas/ga"
 	"github.com/chenthewho/ma-cross-strategy/internal/saas/instance"
+	"github.com/chenthewho/ma-cross-strategy/internal/saas/marketdata"
 	"github.com/chenthewho/ma-cross-strategy/internal/saas/store"
 	"github.com/chenthewho/ma-cross-strategy/internal/saas/ws"
 )
@@ -68,8 +69,15 @@ func main() {
 	// ── 6. Init WebSocket Hub ─────────────────────────────────
 	hub := ws.NewHub(tokenSvc)
 
+	// ── 6b. Init market data service (Binance real-time) ──────
+	marketSvc := marketdata.New(db, logger)
+	if err := marketSvc.Start(); err != nil {
+		logger.Warn("market data service failed to start — falling back to DB cache", zap.Error(err))
+	}
+	defer marketSvc.Stop()
+
 	// ── 7. Init instance manager + recover RUNNING instances ──
-	mgr := instance.NewManager(db, logger)
+	mgr := instance.NewManager(db, marketSvc, logger)
 	recoverRunningInstances(db, mgr, logger)
 
 	// ── 8. Init GA engine (lab/dev mode only) ─────────────────
