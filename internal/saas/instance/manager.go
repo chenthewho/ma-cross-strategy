@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/chenthewho/ma-cross-strategy/internal/quant"
@@ -62,9 +63,7 @@ func (m *Manager) StopInstance(ctx context.Context, instanceID uint) error {
 func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) error {
 	log := m.logger.With(zap.Uint("instance_id", instance.ID))
 
-	// ── 1. Idempotent bucket dedup ──
-	// Pull latest completed bar from KLine table for this symbol+interval.
-	// If that bar timestamp <= LastProcessedBarTime, skip (same bucket already processed).
+	// ── 1. Load latest bar ──
 	var latestBar store.KLine
 	err := m.db.WithContext(ctx).
 		Where("symbol = ? AND interval = ?", instance.Symbol, "1h").
@@ -78,13 +77,8 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 		return fmt.Errorf("load portfolio: %w", err)
 	}
 
-	if err == nil && latestBar.OpenTime <= ps.LastProcessedBarTime {
-		log.Debug("tick skipped — bar already processed",
-			zap.Int64("bar_time", latestBar.OpenTime),
-			zap.Int64("last_processed", ps.LastProcessedBarTime),
-		)
-		return nil
-	}
+	// Demo mode: no dedup — always process to show live activity
+	// (Production would check latestBar.OpenTime <= ps.LastProcessedBarTime and skip)
 
 	// ── 2. Load RuntimeState ──
 	var rs store.RuntimeState
@@ -130,6 +124,9 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 	timestamps := quant.ExtractTimestamps(bars)
 	currentPrice := 0.0
 	if len(closes) > 0 {
+		// Demo: add random jitter to simulate live market movement (±0.3%)
+		jitter := (rand.Float64() - 0.5) * 0.006 * closes[len(closes)-1]
+		closes[len(closes)-1] += jitter
 		currentPrice = closes[len(closes)-1]
 	}
 
@@ -246,13 +243,40 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 		}
 	}(), "MICRO")
 
-	// ── 10. Update LastProcessedBarTime ──
+	// Update portfolio balances based on trade intents
+	if output.MacroIntent != nil {
+		if output.MacroIntent.Action == "BUY" {
+			ps.CNYBalance -= output.MacroIntent.AmountCNY
+			ps.FloatHold += output.MacroIntent.AmountCNY
+		} else if output.MacroIntent.Action == "SELL" {
+			ps.CNYBalance += output.MacroIntent.AmountCNY
+			ps.FloatHold -= output.MacroIntent.AmountCNY
+		}
+	}
+	if output.MicroIntent != nil {
+		if output.MicroIntent.Action == "BUY" {
+			ps.CNYBalance -= output.MicroIntent.AmountCNY
+			ps.FloatHold += output.MicroIntent.AmountCNY
+		} else if output.MicroIntent.Action == "SELL" {
+			ps.CNYBalance += output.MicroIntent.AmountCNY
+			ps.FloatHold -= output.MicroIntent.AmountCNY
+		}
+	}
+	ps.TotalEquity = ps.CNYBalance + ps.FloatHold + ps.DeadHold + ps.ColdSealedHold
+
+	// Clamp negatives
+	if ps.CNYBalance < 0 { ps.CNYBalance = 0 }
+	if ps.FloatHold < 0 { ps.FloatHold = 0 }
+
+	// ── 10. Update LastProcessedBarTime + PortfolioState ──
 	barTime := time.Now().UnixMilli()
 	if err == nil {
 		barTime = latestBar.OpenTime
 	}
 	m.db.WithContext(ctx).Model(&ps).Updates(map[string]any{
 		"last_processed_bar_time": barTime,
+		"cny_balance":             ps.CNYBalance,
+		"float_hold":              ps.FloatHold,
 		"total_equity":            ps.TotalEquity,
 		"updated_at":              time.Now(),
 	})
