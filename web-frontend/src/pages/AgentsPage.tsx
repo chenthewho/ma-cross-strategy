@@ -16,19 +16,19 @@ export default function AgentsPage() {
 
   return (
     <div className="space-y-4 lg:space-y-6 max-w-2xl">
-      <h2 className="text-lg lg:text-xl font-semibold text-[#e2e8f0]">{t('agents.title')}</h2>
+      <h2 className="text-lg lg:text-xl font-semibold text-claude-text">{t('agents.title')}</h2>
 
       <Card className="p-4 lg:p-6 text-center">
         {api_connected ? (
           <>
-            <div className="w-4 h-4 rounded-full bg-[#34d399] mx-auto mb-3 animate-pulse" />
-            <p className="text-[#34d399] font-semibold text-sm lg:text-base">{t('agents.connected')}</p>
-            <p className="text-[10px] lg:text-xs text-[#64748b] mt-1 font-mono">最后心跳: 刚刚</p>
+            <div className="w-4 h-4 rounded-full bg-claude-success mx-auto mb-3 animate-pulse" />
+            <p className="text-claude-success font-semibold text-sm lg:text-base">{t('agents.connected')}</p>
+            <p className="text-[10px] lg:text-xs text-claude-text-muted mt-1 font-mono">最后心跳: 刚刚</p>
           </>
         ) : (
           <>
-            <div className="w-4 h-4 rounded-full bg-[#64748b] mx-auto mb-3" />
-            <p className="text-[#f87171] font-semibold text-sm lg:text-base">{t('agents.disconnected')}</p>
+            <div className="w-4 h-4 rounded-full bg-claude-text-muted mx-auto mb-3" />
+            <p className="text-claude-danger font-semibold text-sm lg:text-base">{t('agents.disconnected')}</p>
           </>
         )}
       </Card>
@@ -40,19 +40,19 @@ export default function AgentsPage() {
           { step: t('agents.step3'), desc: '运行 Agent 后，此处状态应自动更新为已连接' },
         ].map((s, i) => (
           <Card key={i} className="p-3 lg:p-4 flex items-start gap-3 lg:gap-4">
-            <span className="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-[#2dd4bf]/10 border border-[#2dd4bf]/20 flex items-center justify-center text-xs lg:text-sm font-bold text-[#2dd4bf] shrink-0">{i + 1}</span>
+            <span className="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-claude-accent-light border border-claude-accent-border flex items-center justify-center text-xs lg:text-sm font-bold text-claude-accent shrink-0">{i + 1}</span>
             <div>
-              <p className="font-medium text-xs lg:text-sm text-[#e2e8f0]">{s.step}</p>
-              <p className="text-[10px] lg:text-xs text-[#64748b] mt-0.5">{s.desc}</p>
-              {'hint' in s && <p className="text-[10px] lg:text-xs text-[#fbbf24] mt-1 italic">⚠ {s.hint}</p>}
+              <p className="font-medium text-xs lg:text-sm text-claude-text">{s.step}</p>
+              <p className="text-[10px] lg:text-xs text-claude-text-muted mt-0.5">{s.desc}</p>
+              {'hint' in s && <p className="text-[10px] lg:text-xs text-claude-warning mt-1 italic">⚠ {s.hint}</p>}
             </div>
           </Card>
         ))}
       </div>
 
       <Card className="p-3 lg:p-4">
-        <p className="text-[10px] lg:text-xs text-[#94a3b8]">API Key 状态</p>
-        <p className={`font-mono text-xs lg:text-sm mt-1 ${api_configured ? 'text-[#34d399]' : 'text-[#f87171]'}`}>
+        <p className="text-[10px] lg:text-xs text-claude-text-secondary">API Key 状态</p>
+        <p className={`font-mono text-xs lg:text-sm mt-1 ${api_configured ? 'text-claude-success' : 'text-claude-danger'}`}>
           {api_configured ? '已配置' : '未配置'}
         </p>
       </Card>

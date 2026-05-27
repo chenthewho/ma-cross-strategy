@@ -1,89 +1,46 @@
 @import "tailwindcss";
 
 @theme {
-  --color-qs-bg: #0f1115;
-  --color-qs-surface: rgba(255, 255, 255, 0.04);
-  --color-qs-accent: #2dd4bf;
-  --color-qs-danger: #f87171;
-  --color-qs-warn: #fbbf24;
-  --color-qs-safe: #34d399;
+  /* Claude-inspired warm palette */
+  --color-claude-bg: #faf8f5;
+  --color-claude-surface: #ffffff;
+  --color-claude-surface-hover: #f5f2ee;
+  --color-claude-border: #e8e4df;
+  --color-claude-border-hover: #d4cfc7;
+  --color-claude-text: #141414;
+  --color-claude-text-secondary: #6b625a;
+  --color-claude-text-muted: #a0988e;
+  --color-claude-accent: #d97706;
+  --color-claude-accent-hover: #b45309;
+  --color-claude-accent-light: #fffbeb;
+  --color-claude-accent-border: #fde68a;
+  --color-claude-success: #059669;
+  --color-claude-success-light: #ecfdf5;
+  --color-claude-danger: #dc2626;
+  --color-claude-danger-light: #fef2f2;
+  --color-claude-warning: #d97706;
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
 }
 
 body {
   margin: 0;
-  background-color: #020617;
-  color: #e2e8f0;
+  background-color: var(--color-claude-bg);
+  color: var(--color-claude-text);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Thin scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* Thin scrollbar — warm */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #d4cfc7;
   border-radius: 3px;
 }
-
-/* Bento Grid */
-.qs-bento-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-@media (min-width: 768px) {
-  .qs-bento-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (min-width: 1024px) {
-  .qs-bento-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
-/* Glass card base */
-.qs-card {
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(15, 23, 42, 0.2);
-  backdrop-filter: blur(12px);
-  border-radius: 0.75rem;
-}
-
-/* Keyframes */
-@keyframes float1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(30px, -20px) scale(1.05); }
-  66% { transform: translate(-20px, 10px) scale(0.95); }
-}
-@keyframes float2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(-25px, 15px) scale(1.08); }
-  66% { transform: translate(20px, -15px) scale(0.93); }
-}
-@keyframes float3 {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); }
-  33% { transform: translate(-55%, -45%) scale(1.1); }
-  66% { transform: translate(-45%, -55%) scale(0.9); }
-}
-@keyframes floatShape1 {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  50% { transform: translate(15px, -10px) rotate(5deg); }
-}
-@keyframes floatShape2 {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  50% { transform: translate(-15px, 10px) rotate(-5deg); }
-}
-@keyframes particle {
-  0% { opacity: 0; transform: translateY(0) translateX(0); }
-  10% { opacity: 1; }
-  90% { opacity: 0.3; }
-  100% { opacity: 0; transform: translateY(-100vh) translateX(20px); }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #b8b0a6;
 }
 
 /* Mobile sidebar slide-in */
@@ -96,15 +53,20 @@ body {
 }
 
 /* Prevent body scroll when mobile sidebar is open */
-body.sidebar-open {
-  overflow: hidden;
-}
+body.sidebar-open { overflow: hidden; }
 
 /* Toast slide-in */
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.95); }
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .animate-toast-in {
-  animation: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Focus ring — warm */
+*:focus-visible {
+  outline: 2px solid var(--color-claude-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
