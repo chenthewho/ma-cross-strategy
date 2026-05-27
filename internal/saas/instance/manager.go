@@ -78,8 +78,10 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 		return fmt.Errorf("load portfolio: %w", err)
 	}
 
-	// Demo mode: no dedup — always process to show live activity
-	// (Production would check latestBar.OpenTime <= ps.LastProcessedBarTime and skip)
+	// Bar dedup: skip tick if this bar was already processed
+	if latestBar.OpenTime <= ps.LastProcessedBarTime {
+		return nil
+	}
 
 	// ── 2. Load RuntimeState ──
 	var rs store.RuntimeState
