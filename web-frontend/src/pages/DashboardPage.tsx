@@ -98,8 +98,8 @@ export default function DashboardPage() {
                 onClick={(e) => { e.stopPropagation(); toggleStatus(inst) }}
                 className="mt-2 flex items-center gap-1 text-xs text-[#94a3b8] hover:text-[#e2e8f0] transition-colors"
               >
-                {inst.status === 'running' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                {inst.status === 'running' ? t('common.stop') : t('common.start')}
+                {(inst.status || '').toLowerCase() === 'running' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                {(inst.status || '').toLowerCase() === 'running' ? t('common.stop') : t('common.start')}
               </button>
             </Card>
           ))}
@@ -115,7 +115,19 @@ export default function DashboardPage() {
               <Card className="p-4 lg:p-6">
                 <div className="flex items-center justify-between mb-3 lg:mb-4">
                   <h3 className="text-base lg:text-lg font-semibold text-[#e2e8f0]">{selected.name}</h3>
-                  <StatusBadge status={selected.status} />
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={selected.status} />
+                    <button
+                      onClick={() => toggleStatus(selected)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        (selected.status || '').toLowerCase() === 'running'
+                          ? 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20'
+                          : 'bg-[#2dd4bf]/10 border border-[#2dd4bf]/20 text-[#2dd4bf] hover:bg-[#2dd4bf]/20'
+                      }`}
+                    >
+                      {(selected.status || '').toLowerCase() === 'running' ? <><Pause className="w-3 h-3 inline mr-1" />{t('common.stop')}</> : <><Play className="w-3 h-3 inline mr-1" />{t('common.start')}</>}
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
                   <StatItem label={t('dashboard.totalEquity')} value={formatCNY(selected.total_equity ?? selected.cny_balance ?? 0)} />
