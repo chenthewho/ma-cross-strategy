@@ -10,6 +10,7 @@ export interface Instance {
   cny_balance?: number
   dead_hold?: number
   float_hold?: number
+  initial_capital?: number
   created_at: string
 }
 

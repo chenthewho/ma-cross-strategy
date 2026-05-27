@@ -65,6 +65,7 @@ type PortfolioState struct {
 	FloatHold            float64   `gorm:"not null;default:0" json:"float_hold"`
 	ColdSealedHold       float64   `gorm:"not null;default:0" json:"cold_sealed_hold"`
 	TotalEquity          float64   `gorm:"not null;default:0" json:"total_equity"`
+	InitialCapital       float64   `gorm:"not null;default:0" json:"initial_capital"`
 	LastProcessedBarTime int64     `gorm:"default:0" json:"last_processed_bar_time"` // ms timestamp
 	UpdatedAt            time.Time `json:"updated_at"`
 }

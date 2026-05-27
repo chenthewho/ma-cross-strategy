@@ -198,11 +198,12 @@ type instanceWithPortfolio struct {
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 	// Portfolio fields (joined from portfolio_states)
-	TotalEquity   float64 `json:"total_equity"`
-	CNYBalance    float64 `json:"cny_balance"`
-	DeadHold      float64 `json:"dead_hold"`
-	FloatHold     float64 `json:"float_hold"`
+	TotalEquity    float64 `json:"total_equity"`
+	CNYBalance     float64 `json:"cny_balance"`
+	DeadHold       float64 `json:"dead_hold"`
+	FloatHold      float64 `json:"float_hold"`
 	ColdSealedHold float64 `json:"cold_sealed_hold"`
+	InitialCapital float64 `json:"initial_capital"`
 }
 
 func handleListInstances(db *store.DB) gin.HandlerFunc {
@@ -217,7 +218,8 @@ func handleListInstances(db *store.DB) gin.HandlerFunc {
 			COALESCE(ps.cny_balance, 0) as cny_balance,
 			COALESCE(ps.dead_hold, 0) as dead_hold,
 			COALESCE(ps.float_hold, 0) as float_hold,
-			COALESCE(ps.cold_sealed_hold, 0) as cold_sealed_hold
+			COALESCE(ps.cold_sealed_hold, 0) as cold_sealed_hold,
+			COALESCE(ps.initial_capital, 0) as initial_capital
 		FROM strategy_instances si
 		LEFT JOIN portfolio_states ps ON ps.instance_id = si.id
 		WHERE si.user_id = ? AND si.status != ?
@@ -254,6 +256,7 @@ func handleCreateInstance(db *store.DB) gin.HandlerFunc {
 			InstanceID:     inst.ID,
 			CNYBalance:     req.InitialCapital,
 			TotalEquity:    req.InitialCapital,
+			InitialCapital:  req.InitialCapital,
 			ColdSealedHold: req.ColdSealedAmount,
 		}
 		db.Create(&ps)
@@ -327,7 +330,8 @@ func handleDashboard(db *store.DB) gin.HandlerFunc {
 			COALESCE(ps.cny_balance, 0) as cny_balance,
 			COALESCE(ps.dead_hold, 0) as dead_hold,
 			COALESCE(ps.float_hold, 0) as float_hold,
-			COALESCE(ps.cold_sealed_hold, 0) as cold_sealed_hold
+			COALESCE(ps.cold_sealed_hold, 0) as cold_sealed_hold,
+			COALESCE(ps.initial_capital, 0) as initial_capital
 		FROM strategy_instances si
 		LEFT JOIN portfolio_states ps ON ps.instance_id = si.id
 		WHERE si.user_id = ? AND si.status != ?

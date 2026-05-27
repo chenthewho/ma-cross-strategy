@@ -135,6 +135,14 @@ export default function DashboardPage() {
                   <StatItem label={t('dashboard.activeHold')} value={formatCNY(selected.float_hold ?? 0)} />
                   <StatItem label={t('dashboard.availableCash')} value={formatCNY(selected.cny_balance ?? 0)} />
                 </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mt-3 pt-3 border-t border-claude-border">
+                  <StatItem label="盈利金额" value={formatPnL(selected.total_equity ?? 0, selected.initial_capital ?? 0)}
+                    colorClass={(selected.total_equity ?? 0) >= (selected.initial_capital ?? 0) ? 'text-claude-success' : 'text-claude-danger'} />
+                  <StatItem label="盈亏百分比" value={formatPnLPct(selected.total_equity ?? 0, selected.initial_capital ?? 0)}
+                    colorClass={(selected.total_equity ?? 0) >= (selected.initial_capital ?? 0) ? 'text-claude-success' : 'text-claude-danger'} />
+                  <StatItem label="初始资金" value={formatCNY(selected.initial_capital ?? 0)} />
+                  <div />
+                </div>
               </Card>
 
               {/* PnL Chart */}
@@ -177,15 +185,29 @@ export default function DashboardPage() {
   )
 }
 
-function StatItem({ label, value }: { label: string; value: string }) {
+function StatItem({ label, value, colorClass }: { label: string; value: string; colorClass?: string }) {
   return (
     <div>
       <p className="text-[10px] lg:text-xs text-claude-text-muted mb-0.5 lg:mb-1">{label}</p>
-      <p className="font-mono text-sm lg:text-lg text-claude-text font-semibold">{value}</p>
+      <p className={`font-mono text-sm lg:text-lg font-semibold ${colorClass || 'text-claude-text'}`}>{value}</p>
     </div>
   )
 }
 
 function formatCNY(v: number) {
   return '¥' + v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatPnL(equity: number, initial: number) {
+  if (!initial) return '¥0.00'
+  const pnl = equity - initial
+  const sign = pnl >= 0 ? '+' : ''
+  return sign + '¥' + pnl.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatPnLPct(equity: number, initial: number) {
+  if (!initial) return '0.00%'
+  const pct = ((equity - initial) / initial) * 100
+  const sign = pct >= 0 ? '+' : ''
+  return sign + pct.toFixed(2) + '%'
 }
