@@ -247,17 +247,22 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 	}(), "MICRO")
 
 	// ── 10. Update LastProcessedBarTime ──
+	barTime := time.Now().UnixMilli()
 	if err == nil {
-		m.db.WithContext(ctx).Model(&ps).Updates(map[string]any{
-			"last_processed_bar_time": latestBar.OpenTime,
-			"updated_at":              time.Now(),
-		})
-	} else {
-		m.db.WithContext(ctx).Model(&ps).Updates(map[string]any{
-			"last_processed_bar_time": time.Now().UnixMilli(),
-			"updated_at":              time.Now(),
-		})
+		barTime = latestBar.OpenTime
 	}
+	m.db.WithContext(ctx).Model(&ps).Updates(map[string]any{
+		"last_processed_bar_time": barTime,
+		"total_equity":            ps.TotalEquity,
+		"updated_at":              time.Now(),
+	})
+
+	// ── 11. Record EquitySnapshot for charting ──
+	m.db.WithContext(ctx).Create(&store.EquitySnapshot{
+		InstanceID:  instance.ID,
+		TotalEquity: ps.TotalEquity,
+		RecordedAt:  time.Now(),
+	})
 
 	return nil
 }

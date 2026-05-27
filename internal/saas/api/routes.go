@@ -47,6 +47,7 @@ func SetupRoutes(r *gin.Engine, db *store.DB, hub *ws.Hub, tokenSvc *auth.TokenS
 
 	// Dashboard
 	api.GET("/dashboard", handleDashboard(db))
+	api.GET("/dashboard/equity-snapshots", handleEquitySnapshots(db))
 
 	// Agent status
 	api.GET("/agents/status", handleAgentStatus(hub))
@@ -231,8 +232,12 @@ func handleCreateInstance(db *store.DB) gin.HandlerFunc {
 func handleStartInstance(db *store.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-		db.Model(&store.StrategyInstance{}).Where("id = ? AND status = ?", id, store.InstanceStopped).
+		res := db.Model(&store.StrategyInstance{}).Where("id = ? AND status = ?", id, store.InstanceStopped).
 			Update("status", store.InstanceRunning)
+		if res.RowsAffected == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "instance not found or already running"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"status": "started"})
 	}
 }
@@ -240,8 +245,12 @@ func handleStartInstance(db *store.DB) gin.HandlerFunc {
 func handleStopInstance(db *store.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
-		db.Model(&store.StrategyInstance{}).Where("id = ? AND status = ?", id, store.InstanceRunning).
+		res := db.Model(&store.StrategyInstance{}).Where("id = ? AND status = ?", id, store.InstanceRunning).
 			Update("status", store.InstanceStopped)
+		if res.RowsAffected == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "instance not found or already stopped"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"status": "stopped"})
 	}
 }
@@ -280,6 +289,19 @@ func handleDashboard(db *store.DB) gin.HandlerFunc {
 		var instances []store.StrategyInstance
 		db.Where("user_id = ? AND status != ?", userID, store.InstanceDeleted).Find(&instances)
 		c.JSON(http.StatusOK, gin.H{"instances": instances})
+	}
+}
+
+func handleEquitySnapshots(db *store.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		instanceID := c.Query("instance_id")
+		if instanceID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "instance_id is required"})
+			return
+		}
+		var snapshots []store.EquitySnapshot
+		db.Where("instance_id = ?", instanceID).Order("recorded_at ASC").Limit(200).Find(&snapshots)
+		c.JSON(http.StatusOK, gin.H{"snapshots": snapshots})
 	}
 }
 

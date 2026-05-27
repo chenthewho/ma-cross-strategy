@@ -20,21 +20,23 @@ export default function InstanceCreatePage() {
   const [risk, setRisk] = useState('30')
 
   const handleSubmit = async () => {
+    const template = strategyCatalog.find((s) => s.id === templateId)
+    const symbol = template?.symbol || templateId
     try {
       const res = await createInstance({
         template_id: templateId,
         name,
+        symbol,
         initial_capital: parseFloat(capital),
         monthly_inject: parseFloat(monthlyInject),
-        max_drawdown: parseFloat(risk) / 100,
       })
       navigate(`/?instance=${res.id}`, { state: { success: true } })
     } catch (e) {}
   }
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
-      <h2 className="text-xl font-semibold text-[#e2e8f0]">{t('dashboard.newInstance')}</h2>
+    <div className="max-w-xl mx-auto space-y-4 lg:space-y-6">
+      <h2 className="text-lg lg:text-xl font-semibold text-[#e2e8f0]">{t('dashboard.newInstance')}</h2>
 
       {step === 0 && (
         <div className="space-y-4">

@@ -49,6 +49,9 @@ func main() {
 	}
 	logger.Info("database connected and migrated")
 
+	// ── 3b. Seed strategy templates ─────────────────────────────
+	seedStrategyTemplates(db, logger)
+
 	// ── 4. Connect Redis ──────────────────────────────────────
 	redis, err := store.NewRedisClient(cfg.Redis.Addr, cfg.Redis.DB)
 	if err != nil {
@@ -178,4 +181,26 @@ func initGAEngine(logger *zap.Logger) {
 	evolvable := &gcEvolvable.GoldenCrossEvolvable{}
 	_ = ga.NewEngine(evolvable, time.Now().UnixNano())
 	logger.Info("GA engine initialized (lab/dev mode)")
+}
+
+// seedStrategyTemplates inserts built-in strategy templates if they don't exist.
+func seedStrategyTemplates(db *store.DB, logger *zap.Logger) {
+	templates := []store.StrategyTemplate{
+		{
+			ID:          "golden_cross",
+			Name:        "动态均衡策略",
+			Version:     "1.0.0",
+			IsSpot:      true,
+			Description: "基于多维度市场信号动态调整仓位，配合长期底仓与活跃仓分离机制，实现全天候风险管理。",
+		},
+	}
+	for _, tmpl := range templates {
+		var existing store.StrategyTemplate
+		err := db.Where("id = ?", tmpl.ID).First(&existing).Error
+		if err == nil {
+			continue
+		}
+		db.Create(&tmpl)
+		logger.Info("seeded strategy template", zap.String("id", tmpl.ID))
+	}
 }

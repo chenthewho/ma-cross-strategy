@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { Outlet, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -12,7 +13,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { token, user, loading, restore, setAuth, clearAuth } = useAuthStore()
+  const { user, loading, restore, setAuth, clearAuth } = useAuthStore()
 
   useEffect(() => { restore() }, [])
 

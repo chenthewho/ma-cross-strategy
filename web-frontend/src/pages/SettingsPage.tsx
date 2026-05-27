@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import Card from '@/components/Card'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useAuth } from '@/app/AuthProvider'
@@ -8,19 +7,19 @@ export default function SettingsPage() {
   const { user } = useAuth()
 
   return (
-    <div className="space-y-6 max-w-xl">
-      <h2 className="text-xl font-semibold text-[#e2e8f0]">{t('nav.settings')}</h2>
-      <Card className="p-6 space-y-4">
+    <div className="space-y-4 lg:space-y-6 max-w-xl">
+      <h2 className="text-lg lg:text-xl font-semibold text-[#e2e8f0]">{t('nav.settings')}</h2>
+      <Card className="p-4 lg:p-6 space-y-4">
         <div>
-          <p className="text-xs text-[#64748b]">邮箱</p>
-          <p className="font-mono text-sm text-[#e2e8f0]">{user?.email}</p>
+          <p className="text-[10px] lg:text-xs text-[#64748b]">邮箱</p>
+          <p className="font-mono text-xs lg:text-sm text-[#e2e8f0] break-all">{user?.email}</p>
         </div>
         <div>
-          <p className="text-xs text-[#64748b]">角色</p>
-          <p className="text-sm text-[#e2e8f0]">{user?.role}</p>
+          <p className="text-[10px] lg:text-xs text-[#64748b]">角色</p>
+          <p className="text-xs lg:text-sm text-[#e2e8f0]">{user?.role}</p>
         </div>
         <div>
-          <p className="text-xs text-[#64748b] mb-2">语言 / Language</p>
+          <p className="text-[10px] lg:text-xs text-[#64748b] mb-2">语言 / Language</p>
           <div className="flex gap-2">
             {(['zh', 'en'] as const).map((l) => (
               <button key={l} onClick={() => setLocale(l)}

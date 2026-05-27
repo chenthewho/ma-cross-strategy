@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Play, Pause, Settings } from 'lucide-react'
+import { Plus, Play, Pause } from 'lucide-react'
 import Card from '@/components/Card'
 import StatusBadge from '@/components/StatusBadge'
 import PnLChartSkeleton from '@/components/skeletons/PnLChartSkeleton'
 import { fetchInstances, updateInstanceStatus, type Instance } from '@/shared/services/instances'
-import { fetchEquitySnapshots, type EquitySnapshot } from '@/shared/services/dashboard'
+import { fetchEquitySnapshots } from '@/shared/services/dashboard'
 import { useI18n } from '@/i18n/I18nProvider'
 
 export default function DashboardPage() {
@@ -40,7 +40,8 @@ export default function DashboardPage() {
   const selectInstance = (id: number) => { setSelectedId(id); setSearchParams({ instance: String(id) }) }
 
   const toggleStatus = async (inst: Instance) => {
-    const newStatus = inst.status === 'running' ? 'stopped' : 'running'
+    const isRunning = (inst.status || '').toLowerCase() === 'running'
+    const newStatus = isRunning ? 'stopped' : 'running'
     await updateInstanceStatus(inst.id, newStatus)
     refetch()
   }
@@ -48,17 +49,40 @@ export default function DashboardPage() {
   const selected = selectedId ? instances.find((i) => i.id === selectedId) : null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-[#e2e8f0]">{t('dashboard.title')}</h2>
-        <button onClick={() => navigate('/instances/new')} className="flex items-center gap-2 px-3 py-2 bg-[#2dd4bf]/10 border border-[#2dd4bf]/20 text-[#2dd4bf] rounded-lg text-sm hover:bg-[#2dd4bf]/20 transition-colors">
-          <Plus className="w-4 h-4" />{t('dashboard.newInstance')}
+        <h2 className="text-lg lg:text-xl font-semibold text-[#e2e8f0]">{t('dashboard.title')}</h2>
+        <button onClick={() => navigate('/instances/new')} className="flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3 py-2 bg-[#2dd4bf]/10 border border-[#2dd4bf]/20 text-[#2dd4bf] rounded-lg text-xs lg:text-sm hover:bg-[#2dd4bf]/20 transition-colors">
+          <Plus className="w-3.5 h-3.5 lg:w-4 lg:h-4" />{t('dashboard.newInstance')}
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Instance list sidebar */}
-        <div className="lg:col-span-1 space-y-3">
+      {/* Instance selector — horizontal scroll on mobile, sidebar on desktop */}
+      <div className="lg:hidden -mx-3 sm:-mx-4">
+        <div className="flex gap-2 overflow-x-auto px-3 sm:px-4 pb-2 custom-scrollbar snap-x">
+          {instances.map((inst) => (
+            <button
+              key={inst.id}
+              onClick={() => selectInstance(inst.id)}
+              className={`shrink-0 snap-start flex items-center gap-2 px-3 py-2 rounded-lg border text-xs whitespace-nowrap transition-colors ${
+                selectedId === inst.id
+                  ? 'border-[#2dd4bf] bg-[#2dd4bf]/10 text-[#2dd4bf]'
+                  : 'border-white/[0.06] text-[#94a3b8] hover:border-white/[0.12]'
+              }`}
+            >
+              <StatusBadge status={inst.status} />
+              {inst.name}
+            </button>
+          ))}
+          {instances.length === 0 && (
+            <p className="text-xs text-[#64748b] py-2">暂无实例</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
+        {/* Instance list sidebar — hidden on mobile (shown as chips above) */}
+        <div className="hidden lg:block lg:col-span-1 space-y-3">
           {instances.map((inst) => (
             <Card
               key={inst.id}
@@ -85,15 +109,15 @@ export default function DashboardPage() {
         </div>
 
         {/* Main display area */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-4 lg:space-y-6">
           {selected ? (
             <>
-              <Card className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-[#e2e8f0]">{selected.name}</h3>
+              <Card className="p-4 lg:p-6">
+                <div className="flex items-center justify-between mb-3 lg:mb-4">
+                  <h3 className="text-base lg:text-lg font-semibold text-[#e2e8f0]">{selected.name}</h3>
                   <StatusBadge status={selected.status} />
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
                   <StatItem label={t('dashboard.totalEquity')} value={formatCNY(selected.total_equity ?? 0)} />
                   <StatItem label={t('dashboard.longHold')} value="--" />
                   <StatItem label={t('dashboard.activeHold')} value="--" />
@@ -102,10 +126,10 @@ export default function DashboardPage() {
               </Card>
 
               {/* PnL Chart */}
-              <Card className="p-6">
+              <Card className="p-4 lg:p-6">
                 <h4 className="text-sm font-medium text-[#94a3b8] mb-4">总资产曲线</h4>
                 {chartLoading ? <PnLChartSkeleton /> : snapshots.length > 0 ? (
-                  <div className="h-64 flex items-end gap-1">
+                  <div className="h-48 lg:h-64 flex items-end gap-[2px] lg:gap-1">
                     {snapshots.map((s, i) => {
                       const maxV = Math.max(...snapshots.map(x => x.total_equity))
                       const minV = Math.min(...snapshots.map(x => x.total_equity))
@@ -115,24 +139,24 @@ export default function DashboardPage() {
                     })}
                   </div>
                 ) : (
-                  <p className="text-sm text-[#64748b] text-center py-12">暂无净值数据</p>
+                  <p className="text-sm text-[#64748b] text-center py-8 lg:py-12">暂无净值数据</p>
                 )}
               </Card>
 
               {/* Strategy Journey */}
-              <Card className="p-6">
+              <Card className="p-4 lg:p-6">
                 <h4 className="text-sm font-medium text-[#94a3b8] mb-3">策略运行概况</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><span className="text-[#64748b]">创建时间</span><p className="font-mono text-[#e2e8f0]">{selected.created_at?.slice(0, 10)}</p></div>
-                  <div><span className="text-[#64748b]">标的代码</span><p className="font-mono text-[#e2e8f0]">{selected.symbol}</p></div>
-                  <div><span className="text-[#64748b]">策略模板</span><p className="font-mono text-[#e2e8f0]">{selected.template_id}</p></div>
-                  <div><span className="text-[#64748b]">当前状态</span><p className="font-mono text-[#e2e8f0]"><StatusBadge status={selected.status} /></p></div>
+                <div className="grid grid-cols-2 gap-3 lg:gap-4 text-xs lg:text-sm">
+                  <div><span className="text-[#64748b]">创建时间</span><p className="font-mono text-[#e2e8f0] mt-0.5">{selected.created_at?.slice(0, 10)}</p></div>
+                  <div><span className="text-[#64748b]">标的代码</span><p className="font-mono text-[#e2e8f0] mt-0.5">{selected.symbol}</p></div>
+                  <div><span className="text-[#64748b]">策略模板</span><p className="font-mono text-[#e2e8f0] mt-0.5">{selected.template_id}</p></div>
+                  <div><span className="text-[#64748b]">当前状态</span><p className="font-mono text-[#e2e8f0] mt-0.5"><StatusBadge status={selected.status} /></p></div>
                 </div>
               </Card>
             </>
           ) : (
-            <Card className="p-12 text-center text-[#64748b]">
-              请选择一个实例查看详情
+            <Card className="p-8 lg:p-12 text-center text-[#64748b]">
+              {instances.length === 0 ? '暂无实例，点击右上角按钮创建' : '请选择一个实例查看详情'}
             </Card>
           )}
         </div>
@@ -144,8 +168,8 @@ export default function DashboardPage() {
 function StatItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs text-[#64748b] mb-1">{label}</p>
-      <p className="font-mono text-lg text-[#e2e8f0] font-semibold">{value}</p>
+      <p className="text-[10px] lg:text-xs text-[#64748b] mb-0.5 lg:mb-1">{label}</p>
+      <p className="font-mono text-sm lg:text-lg text-[#e2e8f0] font-semibold">{value}</p>
     </div>
   )
 }

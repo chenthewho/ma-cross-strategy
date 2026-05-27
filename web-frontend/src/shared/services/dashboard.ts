@@ -7,5 +7,6 @@ export interface EquitySnapshot {
 }
 
 export async function fetchEquitySnapshots(instanceId: number) {
-  return apiFetch<EquitySnapshot[]>(`/api/v1/dashboard/equity-snapshots?instance_id=${instanceId}`)
+  const res = await apiFetch<{ snapshots: EquitySnapshot[] }>(`/api/v1/dashboard/equity-snapshots?instance_id=${instanceId}`)
+  return res.snapshots || []
 }

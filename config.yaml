@@ -2,7 +2,7 @@
 app_role: dev
 
 server:
-  port: 80
+  port: 8080
   mode: debug
 
 database:

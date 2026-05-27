@@ -11,22 +11,25 @@ export interface Instance {
 }
 
 export async function fetchInstances(): Promise<Instance[]> {
-  return apiFetch<Instance[]>('/api/v1/instances')
+  const res = await apiFetch<{ instances: Instance[] }>('/api/v1/instances')
+  return res.instances || []
 }
 
 export async function fetchInstance(id: number): Promise<Instance> {
-  return apiFetch<Instance>(`/api/v1/instances/${id}`)
+  const instances = await fetchInstances()
+  const inst = instances.find((i) => i.id === id)
+  if (!inst) throw new Error(`Instance ${id} not found`)
+  return inst
 }
 
 export async function createInstance(data: Record<string, unknown>): Promise<Instance> {
-  return apiFetch<Instance>('/api/v1/instances', { method: 'POST', body: JSON.stringify(data) })
+  const res = await apiFetch<{ instance: Instance }>('/api/v1/instances', { method: 'POST', body: JSON.stringify(data) })
+  return res.instance
 }
 
-export async function updateInstanceStatus(id: number, status: string): Promise<Instance> {
-  return apiFetch<Instance>(`/api/v1/instances/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
-  })
+export async function updateInstanceStatus(id: number, status: string): Promise<any> {
+  const action = status === 'running' ? 'start' : 'stop'
+  return apiFetch<any>(`/api/v1/instances/${id}/${action}`, { method: 'POST' })
 }
 
 export async function deleteInstance(id: number): Promise<void> {

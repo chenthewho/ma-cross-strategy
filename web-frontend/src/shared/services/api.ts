@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/authStore'
+import { toast } from '@/hooks/useToast'
 
 export class ApiRequestError extends Error {
   status: number
@@ -26,8 +27,15 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
   }
 
   if (!res.ok) {
-    const body = await res.text()
-    throw new ApiRequestError(res.status, body || res.statusText)
+    let msg = res.statusText
+    try {
+      const body = await res.json()
+      msg = body.error || body.message || msg
+    } catch {
+      msg = await res.text() || msg
+    }
+    toast.error(msg)
+    throw new ApiRequestError(res.status, msg)
   }
 
   return res.json()
