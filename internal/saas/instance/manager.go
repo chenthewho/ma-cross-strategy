@@ -262,24 +262,25 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			ps.FloatHold -= output.MicroIntent.AmountCNY
 		}
 	}
+	// Clamp negatives first
+	if ps.CNYBalance < 0 {
+		ps.CNYBalance = 0
+	}
+	if ps.FloatHold < 0 {
+		ps.FloatHold = 0
+	}
 	ps.TotalEquity = ps.CNYBalance + ps.FloatHold + ps.DeadHold + ps.ColdSealedHold
-
-	// Clamp negatives
-	if ps.CNYBalance < 0 { ps.CNYBalance = 0 }
-	if ps.FloatHold < 0 { ps.FloatHold = 0 }
 
 	// ── 10. Update LastProcessedBarTime + PortfolioState ──
 	barTime := time.Now().UnixMilli()
 	if err == nil {
 		barTime = latestBar.OpenTime
 	}
-	m.db.WithContext(ctx).Model(&ps).Updates(map[string]any{
-		"last_processed_bar_time": barTime,
-		"cny_balance":             ps.CNYBalance,
-		"float_hold":              ps.FloatHold,
-		"total_equity":            ps.TotalEquity,
-		"updated_at":              time.Now(),
-	})
+	m.db.WithContext(ctx).Exec(
+		`UPDATE portfolio_states SET cny_balance=$1, float_hold=$2, total_equity=$3, 
+		 last_processed_bar_time=$4, updated_at=NOW() WHERE instance_id=$5`,
+		ps.CNYBalance, ps.FloatHold, ps.TotalEquity, barTime, instance.ID,
+	)
 
 	// ── 11. Record EquitySnapshot for charting ──
 	m.db.WithContext(ctx).Create(&store.EquitySnapshot{
