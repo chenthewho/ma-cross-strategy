@@ -188,29 +188,38 @@ export default function DashboardPage() {
                   {trades.length > 0 && <span className="ml-2 text-claude-text-muted font-normal">({trades.length} 笔)</span>}
                 </h4>
                 {trades.length > 0 ? (
-                  <div className="divide-y divide-claude-border -mx-4 lg:-mx-6">
+                  <div className="-mx-4 lg:-mx-6">
+                    {/* 表头 */}
+                    <div className="px-4 lg:px-6 py-2 grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-3 text-[10px] lg:text-xs text-claude-text-muted border-b border-claude-border">
+                      <span className="w-12">方向</span>
+                      <span className="text-right">数量</span>
+                      <span className="text-right">单价</span>
+                      <span className="text-right">成交金额</span>
+                      <span className="w-14 text-right">时间</span>
+                    </div>
                     {trades.slice(0, 20).map((tr: TradeRecord) => (
-                      <div key={tr.id} className="px-4 lg:px-6 py-2.5 flex items-center justify-between text-xs lg:text-sm">
-                        <div className="flex items-center gap-3">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] lg:text-xs font-medium ${
-                            tr.action === 'BUY' ? 'bg-claude-success-light text-claude-success' : 'bg-claude-danger-light text-claude-danger'
-                          }`}>{tr.action === 'BUY' ? '买入' : '卖出'}</span>
-                          <span className="text-claude-text-muted font-mono text-[10px] lg:text-xs">{tr.engine}</span>
-                        </div>
-                        <div className="flex items-center gap-4 text-right">
-                          <div>
-                            <span className="font-mono text-claude-text">
-                              {tr.filled_qty > 0 ? tr.filled_qty.toFixed(1) : '--'}
-                            </span>
-                            <span className="text-claude-text-muted ml-1">@¥{tr.filled_price > 0 ? tr.filled_price.toFixed(4) : '--'}</span>
-                          </div>
-                          <span className={`font-mono font-medium ${tr.action === 'BUY' ? 'text-claude-danger' : 'text-claude-success'}`}>
-                            {tr.action === 'BUY' ? '-' : '+'}¥{((tr.filled_qty || 0) * (tr.filled_price || 0)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                      <div key={tr.id} className="px-4 lg:px-6 py-2.5 grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-3 items-center text-xs lg:text-sm border-b border-claude-border last:border-0">
+                        <span className="w-12">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] lg:text-xs font-medium ${
+                            tr.action === 'BUY' 
+                              ? 'bg-green-50 text-green-600' 
+                              : 'bg-red-50 text-red-600'
+                          }`}>
+                            {tr.action === 'BUY' ? '买入' : '卖出'}
                           </span>
-                          <span className="text-claude-text-muted text-[10px] lg:text-xs w-16 text-right">
-                            {new Date(tr.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
+                        </span>
+                        <span className="font-mono text-claude-text text-right">
+                          {tr.filled_qty > 0 ? tr.filled_qty.toFixed(1) : '--'}
+                        </span>
+                        <span className="font-mono text-claude-accent text-right font-medium">
+                          ¥{tr.filled_price > 0 ? tr.filled_price.toFixed(4) : '--'}
+                        </span>
+                        <span className={`font-mono text-right font-medium ${tr.action === 'BUY' ? 'text-red-500' : 'text-green-600'}`}>
+                          {tr.action === 'BUY' ? '-' : '+'}¥{((tr.filled_qty || 0) * (tr.filled_price || 0)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                        </span>
+                        <span className="text-claude-text-muted text-[10px] lg:text-xs w-14 text-right">
+                          {new Date(tr.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
                     ))}
                   </div>
