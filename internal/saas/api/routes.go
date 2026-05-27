@@ -25,6 +25,9 @@ func SetupRoutes(r *gin.Engine, db *store.DB, hub *ws.Hub, tokenSvc *auth.TokenS
 	r.POST("/api/v1/auth/register", handleRegister(db, tokenSvc))
 	r.POST("/api/v1/auth/login", handleLogin(db, tokenSvc))
 
+	// Public system status (no auth)
+	r.GET("/api/v1/system/status", handleSystemStatus(hub))
+
 	// ── Protected routes (JWT required) ──
 	api := r.Group("/api/v1")
 	api.Use(AuthMiddleware(tokenSvc))
@@ -285,6 +288,21 @@ func handleDashboard(db *store.DB) gin.HandlerFunc {
 func handleAgentStatus(hub *ws.Hub) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "connected": true})
+	}
+}
+
+func handleSystemStatus(hub *ws.Hub) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		engine := "running"
+		apiConnected := false
+		if hub != nil {
+			apiConnected = true // simplified
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"engine":         engine,
+			"api_connected":  apiConnected,
+			"api_configured": true,
+		})
 	}
 }
 
