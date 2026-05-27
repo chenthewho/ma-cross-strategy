@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -185,12 +186,43 @@ func handleGetStrategy(c *gin.Context) {
 
 // ── Instance Handlers ────────────────────────────────────────
 
+// instanceWithPortfolio merges StrategyInstance with PortfolioState fields for API output.
+type instanceWithPortfolio struct {
+	ID         uint      `json:"id"`
+	UserID     uint      `json:"user_id"`
+	TemplateID string    `json:"template_id"`
+	Name       string    `json:"name"`
+	Symbol     string    `json:"symbol"`
+	Status     string    `json:"status"`
+	ParamPack  string    `json:"param_pack"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	// Portfolio fields (joined from portfolio_states)
+	TotalEquity   float64 `json:"total_equity"`
+	CNYBalance    float64 `json:"cny_balance"`
+	DeadHold      float64 `json:"dead_hold"`
+	FloatHold     float64 `json:"float_hold"`
+	ColdSealedHold float64 `json:"cold_sealed_hold"`
+}
+
 func handleListInstances(db *store.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetUint("user_id")
-		var instances []store.StrategyInstance
-		db.Where("user_id = ? AND status != ?", userID, store.InstanceDeleted).Find(&instances)
-		c.JSON(http.StatusOK, gin.H{"instances": instances})
+		var results []instanceWithPortfolio
+		db.Raw(`SELECT si.id, si.user_id, si.template_id, si.name, si.symbol,
+			si.status, si.param_pack,
+			COALESCE(si.created_at, now()) as created_at,
+			COALESCE(si.updated_at, now()) as updated_at,
+			COALESCE(ps.total_equity, 0) as total_equity,
+			COALESCE(ps.cny_balance, 0) as cny_balance,
+			COALESCE(ps.dead_hold, 0) as dead_hold,
+			COALESCE(ps.float_hold, 0) as float_hold,
+			COALESCE(ps.cold_sealed_hold, 0) as cold_sealed_hold
+		FROM strategy_instances si
+		LEFT JOIN portfolio_states ps ON ps.instance_id = si.id
+		WHERE si.user_id = ? AND si.status != ?
+		ORDER BY si.id DESC`, userID, store.InstanceDeleted).Scan(&results)
+		c.JSON(http.StatusOK, gin.H{"instances": results})
 	}
 }
 
@@ -286,9 +318,21 @@ func handleGetInstanceTrades(db *store.DB) gin.HandlerFunc {
 func handleDashboard(db *store.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetUint("user_id")
-		var instances []store.StrategyInstance
-		db.Where("user_id = ? AND status != ?", userID, store.InstanceDeleted).Find(&instances)
-		c.JSON(http.StatusOK, gin.H{"instances": instances})
+		var results []instanceWithPortfolio
+		db.Raw(`SELECT si.id, si.user_id, si.template_id, si.name, si.symbol,
+			si.status, si.param_pack,
+			COALESCE(si.created_at, now()) as created_at,
+			COALESCE(si.updated_at, now()) as updated_at,
+			COALESCE(ps.total_equity, 0) as total_equity,
+			COALESCE(ps.cny_balance, 0) as cny_balance,
+			COALESCE(ps.dead_hold, 0) as dead_hold,
+			COALESCE(ps.float_hold, 0) as float_hold,
+			COALESCE(ps.cold_sealed_hold, 0) as cold_sealed_hold
+		FROM strategy_instances si
+		LEFT JOIN portfolio_states ps ON ps.instance_id = si.id
+		WHERE si.user_id = ? AND si.status != ?
+		ORDER BY si.id DESC`, userID, store.InstanceDeleted).Scan(&results)
+		c.JSON(http.StatusOK, gin.H{"instances": results})
 	}
 }
 

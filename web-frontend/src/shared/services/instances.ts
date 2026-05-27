@@ -7,6 +7,9 @@ export interface Instance {
   template_id: string
   status: string
   total_equity?: number
+  cny_balance?: number
+  dead_hold?: number
+  float_hold?: number
   created_at: string
 }
 

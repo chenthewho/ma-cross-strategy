@@ -118,10 +118,10 @@ export default function DashboardPage() {
                   <StatusBadge status={selected.status} />
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-                  <StatItem label={t('dashboard.totalEquity')} value={formatCNY(selected.total_equity ?? 0)} />
-                  <StatItem label={t('dashboard.longHold')} value="--" />
-                  <StatItem label={t('dashboard.activeHold')} value="--" />
-                  <StatItem label={t('dashboard.availableCash')} value="--" />
+                  <StatItem label={t('dashboard.totalEquity')} value={formatCNY(selected.total_equity ?? selected.cny_balance ?? 0)} />
+                  <StatItem label={t('dashboard.longHold')} value={formatCNY(selected.dead_hold ?? 0)} />
+                  <StatItem label={t('dashboard.activeHold')} value={formatCNY(selected.float_hold ?? 0)} />
+                  <StatItem label={t('dashboard.availableCash')} value={formatCNY(selected.cny_balance ?? 0)} />
                 </div>
               </Card>
 
