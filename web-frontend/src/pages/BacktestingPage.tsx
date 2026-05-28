@@ -2,10 +2,8 @@ import { useState } from 'react'
 import { Loader2, Play } from 'lucide-react'
 import Card from '@/components/Card'
 import { createBacktest } from '@/shared/services/backtests'
-import { useI18n } from '@/i18n/I18nProvider'
 
 export default function BacktestingPage() {
-  const { t } = useI18n()
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
 
@@ -19,14 +17,14 @@ export default function BacktestingPage() {
 
   return (
     <div className="space-y-4 lg:space-y-6 max-w-2xl">
-      <h2 className="text-lg lg:text-xl font-semibold text-claude-text">{t('backtesting.title')}</h2>
+      <h2 className="text-lg lg:text-xl font-semibold text-claude-text">回测</h2>
 
       <Card className="p-4 lg:p-6 space-y-4">
-        <p className="text-xs lg:text-sm text-claude-text-secondary">{t('backtesting.currentParams')}</p>
+        <p className="text-xs lg:text-sm text-claude-text-secondary">使用当前最优参数进行历史回测</p>
         <button onClick={startBacktest} disabled={loading}
           className="flex items-center gap-2 px-4 py-2 lg:py-2.5 bg-claude-accent text-white rounded-lg text-xs lg:text-sm font-medium hover:bg-claude-accent-hover disabled:opacity-50 transition-colors">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          {t('backtesting.start')}
+          开始回测
         </button>
       </Card>
 
