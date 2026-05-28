@@ -31,6 +31,9 @@ func SetupRoutes(r *gin.Engine, db *store.DB, hub *ws.Hub, tokenSvc *auth.TokenS
 	// Public system status (no auth)
 	r.GET("/api/v1/system/status", handleSystemStatus(hub))
 
+	// Health check (no auth)
+	r.GET("/api/v1/health", handleHealth)
+
 	// ── Protected routes (JWT required) ──
 	api := r.Group("/api/v1")
 	api.Use(AuthMiddleware(tokenSvc))
@@ -455,6 +458,10 @@ func handleAgentStatus(hub *ws.Hub) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "connected": true})
 	}
+}
+
+func handleHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 func handleSystemStatus(hub *ws.Hub) gin.HandlerFunc {
