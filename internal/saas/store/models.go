@@ -63,9 +63,10 @@ type PortfolioState struct {
 	CNYBalance           float64   `gorm:"not null;default:0" json:"cny_balance"`
 	DeadHold             float64   `gorm:"not null;default:0" json:"dead_hold"`
 	FloatHold            float64   `gorm:"not null;default:0" json:"float_hold"`
+	DeadUnits            float64   `gorm:"not null;default:0" json:"dead_units"`    // units held in dead stack
+	FloatUnits           float64   `gorm:"not null;default:0" json:"float_units"`   // units held in floating position
 	ColdSealedHold       float64   `gorm:"not null;default:0" json:"cold_sealed_hold"`
 	TotalEquity          float64   `gorm:"not null;default:0" json:"total_equity"`
-	FloatUnits           float64   `gorm:"not null;default:0" json:"float_units"`   // units held in floating position
 	RealizedPnL          float64   `gorm:"not null;default:0" json:"realized_pnl"`  // cumulative realized PnL
 	InitialCapital       float64   `gorm:"not null;default:0" json:"initial_capital"`
 	LastProcessedBarTime int64     `gorm:"default:0" json:"last_processed_bar_time"` // ms timestamp

@@ -268,8 +268,13 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			}
 			units := amount / usdCnyRate / currentPrice
 			ps.CNYBalance -= amount
-			ps.FloatHold += amount
-			ps.FloatUnits += units
+			if intent.LotType == "DEAD_STACK" {
+				ps.DeadHold += amount
+				ps.DeadUnits += units
+			} else {
+				ps.FloatHold += amount
+				ps.FloatUnits += units
+			}
 		} else if intent.Action == "SELL" {
 			if amount > ps.FloatHold {
 				amount = ps.FloatHold
@@ -308,7 +313,7 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			FilledQty:     qty,
 			FilledPrice:   currentPrice,
 			CostBasis:     costBasis,
-			LotType:       "FLOATING",
+			LotType:       intent.LotType,
 		})
 	}
 	doTrade(output.MacroIntent, "MACRO")
