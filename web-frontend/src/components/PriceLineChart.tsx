@@ -31,12 +31,13 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
 
   // Filter klines by zoom range (from end)
   const klines = useMemo(() => {
-    if (zoomHours <= 0) return allKlines
+    const safeKlines = allKlines || []
+    if (zoomHours <= 0) return safeKlines
     const cutoff = Date.now() - zoomHours * 3600000
-    return allKlines.filter(k => k.open_time >= cutoff)
+    return safeKlines.filter(k => k.open_time >= cutoff)
   }, [allKlines, zoomHours])
 
-  if (allKlines.length < 2) {
+  if (!allKlines || allKlines.length < 2) {
     return <div className="text-center text-sm text-claude-text-muted py-8">暂无价格数据</div>
   }
 
@@ -76,10 +77,11 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
 
   // Filter trades: show if their nearest kline is in visible range
   const visibleTrades = useMemo(() => {
-    if (klines.length === 0) return []
+    const safeTrades = trades || []
+    if (klines.length === 0) return safeTrades
     const minTime = klines[0].open_time - 1800000  // 30min buffer before
     const maxTime = klines[klines.length - 1].open_time + 5400000  // 1.5h buffer after
-    return trades.filter(t => {
+    return safeTrades.filter(t => {
       const ts = new Date(t.created_at).getTime()
       return ts >= minTime && ts <= maxTime
     })
