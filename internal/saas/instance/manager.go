@@ -23,11 +23,12 @@ type Manager struct {
 	// sendCommand is called to deliver TradeCommands to agents via WebSocket.
 	// nil means no agent connectivity (lab/dev mode or agent offline).
 	sendCommand func(userID uint, cmd map[string]any) error
+	usdCnyRate  float64 // USD/CNY exchange rate for price conversion
 }
 
 // NewManager creates an instance manager.
-func NewManager(db *store.DB, market *md.Service, logger *zap.Logger) *Manager {
-	return &Manager{db: db, market: market, logger: logger}
+func NewManager(db *store.DB, market *md.Service, logger *zap.Logger, usdCnyRate float64) *Manager {
+	return &Manager{db: db, market: market, logger: logger, usdCnyRate: usdCnyRate}
 }
 
 // SetCommandSender sets the function used to deliver TradeCommands to agents.
@@ -264,7 +265,7 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			if amount > ps.CNYBalance {
 				amount = ps.CNYBalance
 			}
-			units := amount / currentPrice
+			units := amount / m.usdCnyRate / currentPrice
 			ps.CNYBalance -= amount
 			ps.FloatHold += amount
 			ps.FloatUnits += units
@@ -276,9 +277,9 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			if ps.FloatHold > 0 && ps.FloatUnits > 0 {
 				unitsSold = ps.FloatUnits * (amount / ps.FloatHold)
 			} else {
-				unitsSold = amount / currentPrice
+				unitsSold = amount / m.usdCnyRate / currentPrice
 			}
-			marketValue := unitsSold * currentPrice
+			marketValue := unitsSold * currentPrice * m.usdCnyRate
 			costBasis := amount
 			ps.RealizedPnL += marketValue - costBasis
 			ps.CNYBalance += marketValue
@@ -292,7 +293,7 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 		if amount <= 0 {
 			return
 		}
-		qty := amount / currentPrice
+		qty := amount / m.usdCnyRate / currentPrice
 		if currentPrice <= 0 {
 			qty = amount
 		}
@@ -322,8 +323,8 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 	if ps.FloatHold < 0 {
 		ps.FloatHold = 0
 	}
-	// Mark-to-market: total equity = CNY + float_market_value + dead + cold_sealed + realized_pnl
-	floatMarketValue := ps.FloatUnits * currentPrice
+	// Mark-to-market: total equity = CNY + float_market_value(USD→CNY) + dead + cold_sealed + realized_pnl
+	floatMarketValue := ps.FloatUnits * currentPrice * m.usdCnyRate
 	ps.TotalEquity = ps.CNYBalance + floatMarketValue + ps.DeadHold + ps.ColdSealedHold + ps.RealizedPnL
 
 	// ── 10. Update LastProcessedBarTime + PortfolioState ──
