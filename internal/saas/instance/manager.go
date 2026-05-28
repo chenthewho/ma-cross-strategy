@@ -281,8 +281,8 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 				unitsSold = amount / usdCnyRate / currentPrice
 			}
 			marketValue := unitsSold * currentPrice * usdCnyRate
-			costBasis = amount
-			ps.RealizedPnL += marketValue - costBasis
+			costBasis = amount / usdCnyRate // Store in USD (same unit as filled_price)
+			ps.RealizedPnL += marketValue - (costBasis * usdCnyRate)
 			ps.CNYBalance += marketValue
 			ps.FloatHold -= amount
 			ps.FloatUnits -= unitsSold

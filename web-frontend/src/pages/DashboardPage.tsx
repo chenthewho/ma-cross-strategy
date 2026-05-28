@@ -460,12 +460,9 @@ function PositionBar({ dead, floating, cold, cash, className }: {
   )
 }
 
-// Approximate USD/CNY rate for display (close enough for profit estimation)
-const USDCNY_RATE = 7.2
-
 function SellDetail({ trade }: { trade: TradeRecord }) {
   const sellUsd = trade.filled_qty * trade.filled_price
-  const costUsd = trade.cost_basis > 0 ? trade.cost_basis / USDCNY_RATE : 0
+  const costUsd = trade.cost_basis   // cost_basis is already in USD
   const profitUsd = sellUsd - costUsd
   const profitRate = costUsd > 0 ? (profitUsd / costUsd) * 100 : 0
 
