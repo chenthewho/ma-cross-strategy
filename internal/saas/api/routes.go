@@ -24,9 +24,6 @@ var wsUpgrader = websocket.Upgrader{
 
 // SetupRoutes registers all HTTP routes on the gin engine.
 func SetupRoutes(r *gin.Engine, db *store.DB, hub *ws.Hub, tokenSvc *auth.TokenService, appRole string) {
-	// CORS middleware — allow frontend dev server + production origins
-	r.Use(corsMiddleware())
-	
 	// ── Public routes (no JWT) ──
 	r.POST("/api/v1/auth/register", handleRegister(db, tokenSvc))
 	r.POST("/api/v1/auth/login", handleLogin(db, tokenSvc))
@@ -79,6 +76,18 @@ func SetupRoutes(r *gin.Engine, db *store.DB, hub *ws.Hub, tokenSvc *auth.TokenS
 			return
 		}
 		hub.HandleConnection(conn)
+	})
+
+	// ── CORS preflight catch-all via NoRoute ──
+	r.NoRoute(func(c *gin.Context) {
+		if c.Request.Method == "OPTIONS" {
+			c.Header("Access-Control-Allow-Origin", "*")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 	})
 }
 
@@ -540,19 +549,6 @@ func handleGetBacktest(db *store.DB) gin.HandlerFunc {
 }
 
 // ── Helpers ───────────────────────────────────────────────────
-
-func corsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-		c.Next()
-	}
-}
 
 func hashPassword(s string) string {
 	// Simple hash for prototype — use bcrypt in production
