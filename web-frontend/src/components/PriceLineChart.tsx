@@ -208,34 +208,33 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
         {/* Price line */}
         <polyline points={points} fill="none" stroke="#d97706" strokeWidth="2"
           strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* Buy markers */}
+        {/* Buy markers — positioned exactly on price line */}
         {buys.map((b, i) => {
           const idx = getKlineIdx(b.created_at)
           const cx = xScale(idx)
-          const cy = yScale(b.price) - 3
-          if (cy < PAD.top || cy > PAD.top + innerH) return null
+          const cy = yScale(klines[idx].close) // on the line
+          if (cy < PAD.top + 6 || cy > PAD.top + innerH - 6) return null
           return (
             <g key={`buy-${i}`}>
               <polygon
-                points={`${cx},${cy - 8} ${cx - 5},${cy} ${cx + 5},${cy}`}
-                fill="#22c55e" opacity="0.85"
+                points={`${cx},${cy + 10} ${cx - 4},${cy + 2} ${cx + 4},${cy + 2}`}
+                fill="#22c55e" stroke="white" strokeWidth="0.8"
               />
             </g>
           )
         })}
 
-        {/* Sell markers */}
+        {/* Sell markers — positioned exactly on price line */}
         {sells.map((s, i) => {
           const idx = getKlineIdx(s.created_at)
           const cx = xScale(idx)
-          const cy = yScale(s.price) + 3
-          if (cy < PAD.top || cy > PAD.top + innerH) return null
+          const cy = yScale(klines[idx].close) // on the line
+          if (cy < PAD.top + 6 || cy > PAD.top + innerH - 6) return null
           return (
             <g key={`sell-${i}`}>
               <polygon
-                points={`${cx},${cy + 8} ${cx - 5},${cy} ${cx + 5},${cy}`}
-                fill="#ef4444" opacity="0.85"
+                points={`${cx},${cy - 10} ${cx - 4},${cy - 2} ${cx + 4},${cy - 2}`}
+                fill="#ef4444" stroke="white" strokeWidth="0.8"
               />
             </g>
           )
@@ -298,9 +297,9 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
         <g transform={`translate(${PAD.left + 8}, ${PAD.top - 10})`}>
           <line x1={0} y1={0} x2={16} y2={0} stroke="#d97706" strokeWidth="2" />
           <text x={20} y={3.5} className="text-[11px] fill-[#9ca3af]">价格</text>
-          <polygon points="28,-5 24,2 32,2" fill="#22c55e" />
+          <polygon points="28,10 24,2 32,2" fill="#22c55e" stroke="white" strokeWidth="0.5" />
           <text x={36} y={3.5} className="text-[11px] fill-[#9ca3af]">买入</text>
-          <polygon points="48,5 44,-2 52,-2" fill="#ef4444" />
+          <polygon points="48,-2 44,6 52,6" fill="#ef4444" stroke="white" strokeWidth="0.5" />
           <text x={56} y={3.5} className="text-[11px] fill-[#9ca3af]">卖出</text>
         </g>
       </svg>
