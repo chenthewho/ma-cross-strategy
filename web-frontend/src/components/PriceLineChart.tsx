@@ -74,11 +74,11 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
     return best
   }
 
-  // Filter trades to visible range
+  // Filter trades: show if their nearest kline is in visible range
   const visibleTrades = useMemo(() => {
     if (klines.length === 0) return []
-    const minTime = klines[0].open_time
-    const maxTime = klines[klines.length - 1].open_time + 3600000
+    const minTime = klines[0].open_time - 1800000  // 30min buffer before
+    const maxTime = klines[klines.length - 1].open_time + 5400000  // 1.5h buffer after
     return trades.filter(t => {
       const ts = new Date(t.created_at).getTime()
       return ts >= minTime && ts <= maxTime
@@ -213,7 +213,7 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
           const idx = getKlineIdx(b.created_at)
           const cx = xScale(idx)
           const cy = yScale(klines[idx].close) // on the line
-          if (cy < PAD.top + 6 || cy > PAD.top + innerH - 6) return null
+          if (cy < PAD.top + 2 || cy > PAD.top + innerH - 2) return null
           return (
             <g key={`buy-${i}`}>
               <polygon
@@ -229,7 +229,7 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
           const idx = getKlineIdx(s.created_at)
           const cx = xScale(idx)
           const cy = yScale(klines[idx].close) // on the line
-          if (cy < PAD.top + 6 || cy > PAD.top + innerH - 6) return null
+          if (cy < PAD.top + 2 || cy > PAD.top + innerH - 2) return null
           return (
             <g key={`sell-${i}`}>
               <polygon
