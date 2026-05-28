@@ -261,6 +261,7 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			return
 		}
 		amount := intent.AmountCNY
+		var costBasis float64 // only populated for SELL
 		if intent.Action == "BUY" {
 			if amount > ps.CNYBalance {
 				amount = ps.CNYBalance
@@ -280,7 +281,7 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 				unitsSold = amount / usdCnyRate / currentPrice
 			}
 			marketValue := unitsSold * currentPrice * usdCnyRate
-			costBasis := amount
+			costBasis = amount
 			ps.RealizedPnL += marketValue - costBasis
 			ps.CNYBalance += marketValue
 			ps.FloatHold -= amount
@@ -306,6 +307,7 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			Symbol:        instance.Symbol,
 			FilledQty:     qty,
 			FilledPrice:   currentPrice,
+			CostBasis:     costBasis,
 			LotType:       "FLOATING",
 		})
 	}

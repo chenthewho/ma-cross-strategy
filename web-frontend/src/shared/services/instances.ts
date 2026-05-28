@@ -48,6 +48,7 @@ export interface TradeRecord {
   symbol: string
   filled_qty: number
   filled_price: number
+  cost_basis: number
   fee: number
   lot_type: string
   created_at: string

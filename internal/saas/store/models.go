@@ -110,6 +110,7 @@ type TradeRecord struct {
 	Symbol        string    `gorm:"not null" json:"symbol"`
 	FilledQty     float64   `gorm:"not null" json:"filled_qty"`
 	FilledPrice   float64   `gorm:"not null" json:"filled_price"`
+	CostBasis     float64   `gorm:"default:0" json:"cost_basis"` // CNY cost basis (SELL only)
 	Fee           float64   `gorm:"default:0" json:"fee"`
 	LotType       string    `gorm:"not null" json:"lot_type"` // "DEAD_STACK" | "FLOATING"
 	CreatedAt     time.Time `json:"created_at"`

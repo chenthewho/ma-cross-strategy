@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Play, Pause, RefreshCw } from 'lucide-react'
+import { Plus, Play, Pause, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import Card from '@/components/Card'
 import StatusBadge from '@/components/StatusBadge'
 import PnLChartSkeleton from '@/components/skeletons/PnLChartSkeleton'
@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [expandedTradeId, setExpandedTradeId] = useState<number | null>(null)
 
   const { data: instances = [], refetch } = useQuery({
     queryKey: ['instances'],
@@ -222,28 +223,50 @@ export default function DashboardPage() {
                       <span className="w-14 text-right">时间</span>
                     </div>
                     {trades.slice(0, 20).map((tr: TradeRecord) => (
-                      <div key={tr.id} className="px-4 lg:px-6 py-2.5 grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-3 items-center text-xs lg:text-sm border-b border-claude-border last:border-0">
-                        <span className="w-12">
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] lg:text-xs font-medium ${
-                            tr.action === 'BUY' 
-                              ? 'bg-green-50 text-green-600' 
-                              : 'bg-red-50 text-red-600'
-                          }`}>
-                            {tr.action === 'BUY' ? '买入' : '卖出'}
+                      <div key={tr.id}>
+                        <div
+                          className={`px-4 lg:px-6 py-2.5 grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-3 items-center text-xs lg:text-sm border-b border-claude-border last:border-0 ${
+                            tr.action === 'SELL' ? 'cursor-pointer hover:bg-claude-accent-light/30' : ''
+                          }`}
+                          onClick={() => {
+                            if (tr.action === 'SELL') {
+                              setExpandedTradeId(expandedTradeId === tr.id ? null : tr.id)
+                            }
+                          }}
+                        >
+                          <span className="w-12 flex items-center gap-1">
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] lg:text-xs font-medium ${
+                              tr.action === 'BUY' 
+                                ? 'bg-green-50 text-green-600' 
+                                : 'bg-red-50 text-red-600'
+                            }`}>
+                              {tr.action === 'BUY' ? '买入' : '卖出'}
+                            </span>
+                            {tr.action === 'SELL' && (
+                              expandedTradeId === tr.id 
+                                ? <ChevronUp className="w-3 h-3 text-claude-text-muted" />
+                                : <ChevronDown className="w-3 h-3 text-claude-text-muted" />
+                            )}
                           </span>
-                        </span>
-                        <span className="font-mono text-claude-text text-right">
-                          {tr.filled_qty > 0 ? Number(tr.filled_qty).toFixed(4) : '--'}
-                        </span>
-                        <span className="font-mono text-claude-accent text-right font-medium">
-                          ¥{tr.filled_price > 0 ? Number(tr.filled_price).toLocaleString('zh-CN', { maximumFractionDigits: 0 }) : '--'}
-                        </span>
-                        <span className={`font-mono text-right font-medium ${tr.action === 'BUY' ? 'text-red-500' : 'text-green-600'}`}>
-                          {tr.action === 'BUY' ? '-' : '+'}¥{((tr.filled_qty || 0) * (tr.filled_price || 0)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
-                        </span>
-                        <span className="text-claude-text-muted text-[10px] lg:text-xs w-14 text-right">
-                          {new Date(tr.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
+                          <span className="font-mono text-claude-text text-right">
+                            {tr.filled_qty > 0 ? Number(tr.filled_qty).toFixed(4) : '--'}
+                          </span>
+                          <span className="font-mono text-claude-accent text-right font-medium">
+                            ${tr.filled_price > 0 ? Number(tr.filled_price).toLocaleString('zh-CN', { maximumFractionDigits: 0 }) : '--'}
+                          </span>
+                          <span className={`font-mono text-right font-medium ${tr.action === 'BUY' ? 'text-red-500' : 'text-green-600'}`}>
+                            {tr.action === 'BUY' ? '-' : '+'}${((tr.filled_qty || 0) * (tr.filled_price || 0)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                          </span>
+                          <span className="text-claude-text-muted text-[10px] lg:text-xs w-14 text-right">
+                            {new Date(tr.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        {/* Expanded detail for SELL */}
+                        {tr.action === 'SELL' && expandedTradeId === tr.id && (
+                          <div className="px-4 lg:px-6 py-3 bg-claude-accent-light/20 border-b border-claude-border">
+                            <SellDetail trade={tr} />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -432,6 +455,53 @@ function PositionBar({ dead, floating, cold, cash, className }: {
             {s.label} {((s.value/total)*100).toFixed(0)}%
           </span>
         ))}
+      </div>
+    </div>
+  )
+}
+
+// Approximate USD/CNY rate for display (close enough for profit estimation)
+const USDCNY_RATE = 7.2
+
+function SellDetail({ trade }: { trade: TradeRecord }) {
+  const sellUsd = trade.filled_qty * trade.filled_price
+  const costUsd = trade.cost_basis > 0 ? trade.cost_basis / USDCNY_RATE : 0
+  const profitUsd = sellUsd - costUsd
+  const profitRate = costUsd > 0 ? (profitUsd / costUsd) * 100 : 0
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+      <div>
+        <span className="text-claude-text-muted">卖出数量</span>
+        <p className="font-mono text-claude-text font-medium mt-0.5">{trade.filled_qty.toFixed(6)} BTC</p>
+      </div>
+      <div>
+        <span className="text-claude-text-muted">卖出金额</span>
+        <p className="font-mono text-green-600 font-medium mt-0.5">+${sellUsd.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</p>
+      </div>
+      <div>
+        <span className="text-claude-text-muted">卖出时间</span>
+        <p className="font-mono text-claude-text mt-0.5">{new Date(trade.created_at).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}</p>
+      </div>
+      <div>
+        <span className="text-claude-text-muted">成本(USD)</span>
+        <p className="font-mono text-claude-text mt-0.5">${costUsd.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</p>
+      </div>
+      <div>
+        <span className="text-claude-text-muted">盈利金额</span>
+        <p className={`font-mono font-medium mt-0.5 ${profitUsd >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+          {profitUsd >= 0 ? '+' : ''}${profitUsd.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
+        </p>
+      </div>
+      <div>
+        <span className="text-claude-text-muted">盈利率</span>
+        <p className={`font-mono font-medium mt-0.5 ${profitRate >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+          {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(2)}%
+        </p>
+      </div>
+      <div>
+        <span className="text-claude-text-muted">引擎</span>
+        <p className="font-mono text-claude-text mt-0.5">{trade.engine}</p>
       </div>
     </div>
   )
