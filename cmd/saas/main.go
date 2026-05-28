@@ -77,7 +77,7 @@ func main() {
 	defer marketSvc.Stop()
 
 	// ── 7. Init instance manager + recover RUNNING instances ──
-	mgr := instance.NewManager(db, marketSvc, logger, cfg.ExchangeRate)
+	mgr := instance.NewManager(db, marketSvc, logger)
 	recoverRunningInstances(db, mgr, logger)
 
 	// ── 8. Init GA engine (lab/dev mode only) ─────────────────

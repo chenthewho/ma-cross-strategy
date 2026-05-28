@@ -24,6 +24,3 @@ jwt:
 ai:
   claude_api_key: ""
   finance_news_api_key: ""
-
-# USD/CNY exchange rate for BTC price → CNY conversion
-exchange_rate: 7.25

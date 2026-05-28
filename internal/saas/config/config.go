@@ -10,13 +10,12 @@ import (
 
 // Config holds all configuration for the SaaS application.
 type Config struct {
-	AppRole      string         `yaml:"app_role"` // "saas" | "lab" | "dev"
-	Server       ServerConfig   `yaml:"server"`
-	Database     DatabaseConfig `yaml:"database"`
-	Redis        RedisConfig    `yaml:"redis"`
-	JWT          JWTConfig      `yaml:"jwt"`
-	AI           AIConfig       `yaml:"ai"`
-	ExchangeRate float64        `yaml:"exchange_rate"` // USD/CNY rate, default 7.25
+	AppRole  string         `yaml:"app_role"` // "saas" | "lab" | "dev"
+	Server   ServerConfig   `yaml:"server"`
+	Database DatabaseConfig `yaml:"database"`
+	Redis    RedisConfig    `yaml:"redis"`
+	JWT      JWTConfig      `yaml:"jwt"`
+	AI       AIConfig       `yaml:"ai"`
 }
 
 // ServerConfig holds HTTP server settings.
@@ -101,9 +100,6 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Database.SSLMode == "" {
 		cfg.Database.SSLMode = "disable"
-	}
-	if cfg.ExchangeRate == 0 {
-		cfg.ExchangeRate = 7.25
 	}
 
 	return &cfg, nil

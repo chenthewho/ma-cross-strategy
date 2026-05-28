@@ -15,27 +15,30 @@ import (
 )
 
 const (
-	binanceKlineURL = "https://api.binance.com/api/v3/klines"
-	symbol          = "BTCUSDT"
-	interval        = "1h"
-	limit           = 500
-	refreshSec      = 30
+	binanceKlineURL  = "https://api.binance.com/api/v3/klines"
+	forexRateURL     = "https://open.er-api.com/v6/latest/USD"
+	symbol           = "BTCUSDT"
+	interval         = "1h"
+	limit            = 500
+	refreshSec       = 30
+	forexRefreshSec  = 3600 // refresh forex rate every hour
 )
 
-// Service fetches and caches market data from Binance.
+// Service fetches and caches market data from Binance + forex rates.
 type Service struct {
 	db     *store.DB
 	logger *zap.Logger
 
-	mu      sync.RWMutex
-	lastC   float64 // latest close price
-	running bool
-	stopCh  chan struct{}
+	mu        sync.RWMutex
+	lastC     float64 // latest BTC close price
+	usdCny    float64 // latest USD/CNY rate
+	running   bool
+	stopCh    chan struct{}
 }
 
 // New creates a market data service.
 func New(db *store.DB, logger *zap.Logger) *Service {
-	return &Service{db: db, logger: logger, stopCh: make(chan struct{})}
+	return &Service{db: db, logger: logger, stopCh: make(chan struct{}), usdCny: 7.25}
 }
 
 // LatestPrice returns the most recent close price (thread-safe).
@@ -45,14 +48,32 @@ func (s *Service) LatestPrice() float64 {
 	return s.lastC
 }
 
-// Start initializes K-line data and begins periodic refresh.
+// USDCNYRate returns the latest USD/CNY exchange rate (thread-safe).
+func (s *Service) USDCNYRate() float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.usdCny <= 0 {
+		return 7.25 // fallback
+	}
+	return s.usdCny
+}
+
+// Start initializes K-line data, forex rate, and begins periodic refresh.
 func (s *Service) Start() error {
 	if err := s.fetchAndStore(); err != nil {
 		return fmt.Errorf("initial fetch: %w", err)
 	}
+	// Fetch forex rate (non-fatal if fails — uses fallback)
+	if err := s.fetchForexRate(); err != nil {
+		s.logger.Warn("forex rate fetch failed, using fallback 7.25", zap.Error(err))
+	}
 	s.running = true
 	go s.refreshLoop()
-	s.logger.Info("market data service started", zap.Float64("latest_price", s.lastC))
+	go s.forexRefreshLoop()
+	s.logger.Info("market data service started",
+		zap.Float64("latest_price", s.lastC),
+		zap.Float64("usd_cny_rate", s.USDCNYRate()),
+	)
 	return nil
 }
 
@@ -148,5 +169,54 @@ func (s *Service) fetchAndStore() error {
 		zap.Float64("latest", latest.Close),
 		zap.Time("bar_time", time.UnixMilli(latest.OpenTime)),
 	)
+	return nil
+}
+
+// forexRefreshLoop periodically fetches the USD/CNY rate.
+func (s *Service) forexRefreshLoop() {
+	ticker := time.NewTicker(forexRefreshSec * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case <-ticker.C:
+			if err := s.fetchForexRate(); err != nil {
+				s.logger.Warn("forex rate refresh failed", zap.Error(err))
+			}
+		}
+	}
+}
+
+// fetchForexRate fetches the latest USD/CNY rate from frankfurter.app.
+func (s *Service) fetchForexRate() error {
+	resp, err := http.Get(forexRateURL)
+	if err != nil {
+		return fmt.Errorf("http get: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read body: %w", err)
+	}
+
+	var result struct {
+		Rates map[string]float64 `json:"rates"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("unmarshal: %w", err)
+	}
+
+	rate, ok := result.Rates["CNY"]
+	if !ok || rate <= 0 {
+		return fmt.Errorf("CNY rate not found in response")
+	}
+
+	s.mu.Lock()
+	s.usdCny = rate
+	s.mu.Unlock()
+
+	s.logger.Debug("forex rate updated", zap.Float64("usd_cny", rate))
 	return nil
 }
