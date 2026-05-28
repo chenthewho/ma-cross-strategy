@@ -364,9 +364,11 @@ func handlePriceChart(db *store.DB) gin.HandlerFunc {
 			Close    float64 `json:"close"`
 		}
 		var klines []KlinePoint
-		db.Raw(`SELECT open_time, close FROM k_lines 
+		db.Raw(`SELECT open_time, close FROM (
+			SELECT open_time, close FROM k_lines 
 			WHERE symbol = ? AND interval = '1h' 
-			ORDER BY open_time ASC LIMIT 200`, inst.Symbol).Scan(&klines)
+			ORDER BY open_time DESC LIMIT 200
+		) sub ORDER BY open_time ASC`, inst.Symbol).Scan(&klines)
 
 		// Load trades for buy/sell markers
 		type TradeMarker struct {
