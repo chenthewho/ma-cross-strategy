@@ -1,5 +1,13 @@
 # MA Cross Strategy — Quant SaaS + Agent
 
+## 全局规则（每次对话自动加载）
+
+**提交规则：** 每完成一个功能或修复一个 bug，必须执行：
+```bash
+git add -A && git commit -m "描述" && git push origin main
+```
+不要等待、不要询问、不要批量提交。写完就 commit。
+
 ## 唯一功能真源
 
 本项目的功能定义**仅**依据 `doc/` 下的三份文档：
