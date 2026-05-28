@@ -94,17 +94,25 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 		json.Unmarshal([]byte(rs.StateJSON), &runtime)
 	}
 
-	// ── 3. Load champion params ──
+	// ── 3. Load params: instance ParamPack > champion > defaults ──
 	params := gc.Params{
 		Chromosome: quant.DefaultSeedChromosome,
 		SpawnPoint: quant.DefaultSpawnPoint,
 	}
-	var champ store.GeneRecord
-	if err := m.db.WithContext(ctx).Where("strategy_id = ? AND role = ?",
-		instance.TemplateID, store.GeneChampion).First(&champ).Error; err == nil {
-		pp := quant.DecodeParamPack([]byte(champ.ParamPack))
+	// Priority 1: Instance-level ParamPack (user-configured on creation)
+	if instance.ParamPack != "" {
+		pp := quant.DecodeParamPack([]byte(instance.ParamPack))
 		params.Chromosome = pp.Chromosome
 		params.SpawnPoint = pp.SpawnPoint
+	} else {
+		// Priority 2: Champion gene (from GA evolution)
+		var champ store.GeneRecord
+		if err := m.db.WithContext(ctx).Where("strategy_id = ? AND role = ?",
+			instance.TemplateID, store.GeneChampion).First(&champ).Error; err == nil {
+			pp := quant.DecodeParamPack([]byte(champ.ParamPack))
+			params.Chromosome = pp.Chromosome
+			params.SpawnPoint = pp.SpawnPoint
+		}
 	}
 
 	// ── 4. ACL outer ring — OHLCV strip ──
@@ -256,19 +264,34 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			if amount > ps.CNYBalance {
 				amount = ps.CNYBalance
 			}
+			units := amount / currentPrice
 			ps.CNYBalance -= amount
 			ps.FloatHold += amount
+			ps.FloatUnits += units
 		} else if intent.Action == "SELL" {
 			if amount > ps.FloatHold {
 				amount = ps.FloatHold
 			}
-			ps.CNYBalance += amount
+			var unitsSold float64
+			if ps.FloatHold > 0 && ps.FloatUnits > 0 {
+				unitsSold = ps.FloatUnits * (amount / ps.FloatHold)
+			} else {
+				unitsSold = amount / currentPrice
+			}
+			marketValue := unitsSold * currentPrice
+			costBasis := amount
+			ps.RealizedPnL += marketValue - costBasis
+			ps.CNYBalance += marketValue
 			ps.FloatHold -= amount
+			ps.FloatUnits -= unitsSold
+			if ps.FloatUnits < 0 {
+				ps.FloatUnits = 0
+			}
+			amount = marketValue
 		}
 		if amount <= 0 {
 			return
 		}
-		// Write TradeRecord
 		qty := amount / currentPrice
 		if currentPrice <= 0 {
 			qty = amount
@@ -299,7 +322,9 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 	if ps.FloatHold < 0 {
 		ps.FloatHold = 0
 	}
-	ps.TotalEquity = ps.CNYBalance + ps.FloatHold + ps.DeadHold + ps.ColdSealedHold
+	// Mark-to-market: total equity = CNY + float_market_value + dead + cold_sealed + realized_pnl
+	floatMarketValue := ps.FloatUnits * currentPrice
+	ps.TotalEquity = ps.CNYBalance + floatMarketValue + ps.DeadHold + ps.ColdSealedHold + ps.RealizedPnL
 
 	// ── 10. Update LastProcessedBarTime + PortfolioState ──
 	barTime := time.Now().UnixMilli()
@@ -307,9 +332,9 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 		barTime = latestBar.OpenTime
 	}
 	m.db.WithContext(ctx).Exec(
-		`UPDATE portfolio_states SET cny_balance=$1, float_hold=$2, total_equity=$3, 
-		 last_processed_bar_time=$4, updated_at=NOW() WHERE instance_id=$5`,
-		ps.CNYBalance, ps.FloatHold, ps.TotalEquity, barTime, instance.ID,
+		`UPDATE portfolio_states SET cny_balance=$1, float_hold=$2, float_units=$3, realized_pnl=$4, total_equity=$5,
+		 last_processed_bar_time=$6, updated_at=NOW() WHERE instance_id=$7`,
+		ps.CNYBalance, ps.FloatHold, ps.FloatUnits, ps.RealizedPnL, ps.TotalEquity, barTime, instance.ID,
 	)
 
 	// ── 11. Record EquitySnapshot for charting ──

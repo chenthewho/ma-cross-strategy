@@ -2,6 +2,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
+	"github.com/chenthewho/ma-cross-strategy/internal/quant"
 	"github.com/chenthewho/ma-cross-strategy/internal/saas/auth"
 	"github.com/chenthewho/ma-cross-strategy/internal/saas/store"
 	"github.com/chenthewho/ma-cross-strategy/internal/saas/ws"
@@ -232,12 +234,13 @@ func handleCreateInstance(db *store.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetUint("user_id")
 		var req struct {
-			TemplateID       string  `json:"template_id" binding:"required"`
-			Name             string  `json:"name" binding:"required"`
-			Symbol           string  `json:"symbol"`
-			InitialCapital   float64 `json:"initial_capital"`
-			MonthlyInject    float64 `json:"monthly_inject"`
-			ColdSealedAmount float64 `json:"cold_sealed_amount"`
+			TemplateID        string  `json:"template_id" binding:"required"`
+			Name              string  `json:"name" binding:"required"`
+			Symbol            string  `json:"symbol"`
+			InitialCapital    float64 `json:"initial_capital"`
+			MonthlyInject     float64 `json:"monthly_inject"`
+			MacroIntervalDays int     `json:"macro_interval_days"`
+			ColdSealedAmount  float64 `json:"cold_sealed_amount"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -246,9 +249,33 @@ func handleCreateInstance(db *store.DB) gin.HandlerFunc {
 		if req.Symbol == "" {
 			req.Symbol = "BTCUSDT"
 		}
+		if req.InitialCapital == 0 {
+			req.InitialCapital = 100000
+		}
+		if req.MonthlyInject == 0 {
+			req.MonthlyInject = 5000
+		}
+		if req.MacroIntervalDays == 0 {
+			req.MacroIntervalDays = 30
+		}
+
+		// Build ParamPack with custom DCA interval
+		chromo := quant.DefaultSeedChromosome
+		chromo.MacroIntervalDays = req.MacroIntervalDays
+		spawn := quant.DefaultSpawnPoint
+		spawn.Policy.MonthlyInject = req.MonthlyInject
+		spawn.Policy.InitialCapital = req.InitialCapital
+		pp := quant.ParamPack{
+			StrategyID: req.TemplateID,
+			Chromosome: chromo,
+			SpawnPoint: spawn,
+		}
+		ppBytes, _ := json.Marshal(pp)
+
 		inst := store.StrategyInstance{
 			UserID: userID, TemplateID: req.TemplateID,
 			Name: req.Name, Symbol: req.Symbol, Status: store.InstanceStopped,
+			ParamPack: string(ppBytes),
 		}
 		if err := db.Create(&inst).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "create instance failed"})
@@ -333,6 +360,8 @@ func handleDashboard(db *store.DB) gin.HandlerFunc {
 			COALESCE(ps.cny_balance, 0) as cny_balance,
 			COALESCE(ps.dead_hold, 0) as dead_hold,
 			COALESCE(ps.float_hold, 0) as float_hold,
+			COALESCE(ps.float_units, 0) as float_units,
+			COALESCE(ps.realized_pnl, 0) as realized_pnl,
 			COALESCE(ps.cold_sealed_hold, 0) as cold_sealed_hold,
 			COALESCE(ps.initial_capital, 0) as initial_capital
 		FROM strategy_instances si

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Plus, Play, Pause } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus, Play, Pause, RefreshCw } from 'lucide-react'
 import Card from '@/components/Card'
 import StatusBadge from '@/components/StatusBadge'
 import PnLChartSkeleton from '@/components/skeletons/PnLChartSkeleton'
@@ -51,6 +51,19 @@ export default function DashboardPage() {
     const newStatus = isRunning ? 'stopped' : 'running'
     await updateInstanceStatus(inst.id, newStatus)
     refetch()
+  }
+
+  const queryClient = useQueryClient()
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshAll = async () => {
+    setRefreshing(true)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['instances'] }),
+      queryClient.invalidateQueries({ queryKey: ['equity', selectedId] }),
+      queryClient.invalidateQueries({ queryKey: ['trades', selectedId] }),
+    ])
+    refetch()
+    setTimeout(() => setRefreshing(false), 600)
   }
 
   const selected = selectedId ? instances.find((i) => i.id === selectedId) : null
@@ -123,6 +136,14 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-base lg:text-lg font-semibold text-claude-text">{selected.name}</h3>
                   <div className="flex items-center gap-3">
+                    <button
+                      onClick={refreshAll}
+                      disabled={refreshing}
+                      className="p-1.5 rounded-lg text-claude-text-secondary hover:text-claude-accent hover:bg-claude-accent-light transition-colors"
+                      title="刷新数据"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                    </button>
                     <StatusBadge status={selected.status} />
                     <button
                       onClick={() => toggleStatus(selected)}
@@ -136,17 +157,28 @@ export default function DashboardPage() {
                     </button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
                   <StatItem label={t('dashboard.totalEquity')} value={formatCNY(selected.total_equity ?? selected.cny_balance ?? 0)} />
-                  <StatItem label={t('dashboard.longHold')} value={formatCNY(selected.dead_hold ?? 0)} />
-                  <StatItem label={t('dashboard.activeHold')} value={formatCNY(selected.float_hold ?? 0)} />
-                  <StatItem label={t('dashboard.availableCash')} value={formatCNY(selected.cny_balance ?? 0)} />
+                  <StatItem label="底仓 Dead" value={formatCNY(selected.dead_hold ?? 0)} colorClass="text-amber-600" />
+                  <StatItem label="浮动仓 Float" value={formatCNY((selected as any).float_hold ?? 0)} colorClass="text-blue-600" />
+                  <StatItem label="冷封仓 Cold" value={formatCNY((selected as any).cold_sealed_hold ?? 0)} colorClass="text-slate-500" />
+                  <StatItem label="可用现金" value={formatCNY(selected.cny_balance ?? 0)} />
                 </div>
+                {/* 仓位分布条 */}
+                <PositionBar
+                  dead={(selected as any).dead_hold ?? 0}
+                  floating={(selected as any).float_hold ?? 0}
+                  cold={(selected as any).cold_sealed_hold ?? 0}
+                  cash={selected.cny_balance ?? 0}
+                  className="mt-3"
+                />
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mt-3 pt-3 border-t border-claude-border">
                   <StatItem label="盈利金额" value={formatPnL(selected.total_equity ?? 0, selected.initial_capital ?? 0)}
                     colorClass={(selected.total_equity ?? 0) >= (selected.initial_capital ?? 0) ? 'text-claude-success' : 'text-claude-danger'} />
                   <StatItem label="盈亏百分比" value={formatPnLPct(selected.total_equity ?? 0, selected.initial_capital ?? 0)}
                     colorClass={(selected.total_equity ?? 0) >= (selected.initial_capital ?? 0) ? 'text-claude-success' : 'text-claude-danger'} />
+                  <StatItem label="已实现盈亏" value={formatPnL((selected as any).realized_pnl ?? 0, 0)}
+                    colorClass={((selected as any).realized_pnl ?? 0) >= 0 ? 'text-claude-success' : 'text-claude-danger'} />
                   <StatItem label="初始资金" value={formatCNY(selected.initial_capital ?? 0)} />
                   <div />
                 </div>
@@ -366,4 +398,41 @@ function formatPnLPct(equity: number, initial: number) {
   const pct = ((equity - initial) / initial) * 100
   const sign = pct >= 0 ? '+' : ''
   return sign + pct.toFixed(2) + '%'
+}
+
+function PositionBar({ dead, floating, cold, cash, className }: {
+  dead: number; floating: number; cold: number; cash: number; className?: string
+}) {
+  const total = dead + floating + cold + cash
+  if (total <= 0) return null
+
+  const segments = [
+    { label: '底仓', value: dead, color: 'bg-amber-500', text: 'text-amber-700' },
+    { label: '浮动', value: floating, color: 'bg-blue-500', text: 'text-blue-700' },
+    { label: '冷封', value: cold, color: 'bg-slate-400', text: 'text-slate-600' },
+    { label: '现金', value: cash, color: 'bg-emerald-400', text: 'text-emerald-700' },
+  ].filter(s => s.value > 0)
+
+  return (
+    <div className={className}>
+      <div className="flex h-3 rounded-full overflow-hidden bg-claude-border">
+        {segments.map((s, i) => (
+          <div
+            key={i}
+            className={`${s.color} transition-all duration-500`}
+            style={{ width: `${(s.value / total) * 100}%`, minWidth: s.value > 0 ? '4px' : 0 }}
+            title={`${s.label}: ¥${s.value.toLocaleString()} (${((s.value/total)*100).toFixed(1)}%)`}
+          />
+        ))}
+      </div>
+      <div className="flex gap-3 mt-1.5 text-[10px]">
+        {segments.map((s, i) => (
+          <span key={i} className={`flex items-center gap-1 ${s.text}`}>
+            <span className={`w-2 h-2 rounded-sm ${s.color}`} />
+            {s.label} {((s.value/total)*100).toFixed(0)}%
+          </span>
+        ))}
+      </div>
+    </div>
+  )
 }

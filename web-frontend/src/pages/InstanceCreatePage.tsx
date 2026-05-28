@@ -17,7 +17,17 @@ export default function InstanceCreatePage() {
   const [name, setName] = useState('')
   const [capital, setCapital] = useState('100000')
   const [monthlyInject, setMonthlyInject] = useState('5000')
+  const [macroIntervalDays, setMacroIntervalDays] = useState(30)
   const [risk, setRisk] = useState('30')
+
+  const dcaOptions = [
+    { label: '每天', value: 1 },
+    { label: '每周一', value: 7 },
+    { label: '每两周', value: 14 },
+    { label: '每月', value: 30 },
+  ]
+
+  const injectLabel = dcaOptions.find(o => o.value === macroIntervalDays)?.label || '每月'
 
   const handleSubmit = async () => {
     const symbol = 'BTCUSDT'
@@ -28,6 +38,7 @@ export default function InstanceCreatePage() {
         symbol,
         initial_capital: parseFloat(capital),
         monthly_inject: parseFloat(monthlyInject),
+        macro_interval_days: macroIntervalDays,
       })
       navigate(`/?instance=${res.id}`, { state: { success: true } })
     } catch (e) {}
@@ -71,9 +82,28 @@ export default function InstanceCreatePage() {
               className="w-full px-4 py-2.5 bg-claude-bg border border-claude-border rounded-lg text-claude-text text-sm focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 outline-none font-mono transition-colors" />
           </div>
           <div>
-            <label className="text-xs text-claude-text-secondary block mb-1.5">月注资金额 (CNY)</label>
+            <label className="text-xs text-claude-text-secondary block mb-1.5">{injectLabel}注资金额 (CNY)</label>
             <input type="number" value={monthlyInject} onChange={(e) => setMonthlyInject(e.target.value)}
               className="w-full px-4 py-2.5 bg-claude-bg border border-claude-border rounded-lg text-claude-text text-sm focus:border-claude-accent focus:ring-1 focus:ring-claude-accent/30 outline-none font-mono transition-colors" />
+          </div>
+          <div>
+            <label className="text-xs text-claude-text-secondary block mb-1.5">MACRO 定投周期</label>
+            <div className="flex gap-2">
+              {dcaOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setMacroIntervalDays(opt.value)}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+                    macroIntervalDays === opt.value
+                      ? 'bg-claude-accent text-white'
+                      : 'bg-claude-bg border border-claude-border text-claude-text-secondary hover:border-claude-border-hover'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label className="text-xs text-claude-text-secondary block mb-1.5">最大可接受回撤: {risk}%</label>
