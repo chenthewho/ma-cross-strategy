@@ -26,7 +26,7 @@ func Step(input quant.StrategyInput, params Params) quant.StrategyOutput {
 	spendableCNY := math.Max(0, input.Portfolio.CNYBalance-totalEquity*c.MicroReservePct)
 	currentMicroWeight := 0.0
 	if totalEquity > 0 {
-		currentMicroWeight = input.Portfolio.FloatHold * input.CurrentPrice / totalEquity
+		currentMicroWeight = input.Portfolio.FloatHold / totalEquity
 	}
 
 	// ── 3. Market state ──
