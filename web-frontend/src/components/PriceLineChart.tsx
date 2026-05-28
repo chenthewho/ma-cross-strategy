@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useMemo } from 'react'
 import type { KlinePoint, TradeMarker } from '@/shared/services/dashboard'
 
 export interface PriceChartData {
@@ -7,9 +7,19 @@ export interface PriceChartData {
   avg_buy_price: number
 }
 
+const ZOOM_PRESETS = [
+  { label: '1天', hours: 24 },
+  { label: '3天', hours: 72 },
+  { label: '1周', hours: 168 },
+  { label: '2周', hours: 336 },
+  { label: '全部', hours: 0 },
+] as const
+
 export default function PriceLineChart({ data }: { data: PriceChartData }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [tooltip, setTooltip] = useState<{ idx: number; x: number; y: number } | null>(null)
+  const [zoomHours, setZoomHours] = useState(0) // 0 = all
+  const pinchRef = useRef<{ dist: number; count: number } | null>(null)
 
   const W = 800
   const H = 280
@@ -17,9 +27,16 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
   const innerW = W - PAD.left - PAD.right
   const innerH = H - PAD.top - PAD.bottom
 
-  const { klines, trades, avg_buy_price } = data
+  const { klines: allKlines, trades, avg_buy_price } = data
 
-  if (klines.length < 2) {
+  // Filter klines by zoom range (from end)
+  const klines = useMemo(() => {
+    if (zoomHours <= 0) return allKlines
+    const cutoff = Date.now() - zoomHours * 3600000
+    return allKlines.filter(k => k.open_time >= cutoff)
+  }, [allKlines, zoomHours])
+
+  if (allKlines.length < 2) {
     return <div className="text-center text-sm text-claude-text-muted py-8">暂无价格数据</div>
   }
 
@@ -28,7 +45,7 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
   const minV = Math.min(...closes)
   const range = (maxV - minV) || 1
 
-  const xScale = (i: number) => PAD.left + (i / (klines.length - 1)) * innerW
+  const xScale = (i: number) => PAD.left + (i / Math.max(klines.length - 1, 1)) * innerW
   const yScale = (v: number) => PAD.top + innerH - ((v - minV) / range) * innerH
 
   // Price line
@@ -42,10 +59,10 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
   // X-axis time labels
   const xLabelCount = Math.min(4, klines.length)
   const xLabelIndices = Array.from({ length: xLabelCount }, (_, i) =>
-    Math.round((i * (klines.length - 1)) / (xLabelCount - 1))
+    Math.round((i * Math.max(klines.length - 1, 0)) / Math.max(xLabelCount - 1, 1))
   )
 
-  // Map trade time to nearest kline index for marker placement
+  // Map trade time to nearest kline index
   const getKlineIdx = (time: string) => {
     const ts = new Date(time).getTime()
     let best = 0
@@ -57,19 +74,80 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
     return best
   }
 
-  const buys = trades.filter(t => t.action === 'BUY')
-  const sells = trades.filter(t => t.action === 'SELL')
+  // Filter trades to visible range
+  const visibleTrades = useMemo(() => {
+    if (klines.length === 0) return []
+    const minTime = klines[0].open_time
+    const maxTime = klines[klines.length - 1].open_time + 3600000
+    return trades.filter(t => {
+      const ts = new Date(t.created_at).getTime()
+      return ts >= minTime && ts <= maxTime
+    })
+  }, [trades, klines])
 
+  const buys = visibleTrades.filter(t => t.action === 'BUY')
+  const sells = visibleTrades.filter(t => t.action === 'SELL')
+
+  // Tooltip on pointer move
   const handlePointer = useCallback((e: React.PointerEvent) => {
     const svg = svgRef.current
     if (!svg) return
     const rect = svg.getBoundingClientRect()
     const scaleX = W / rect.width
     const mx = (e.clientX - rect.left) * scaleX
-    const idx = Math.round(((mx - PAD.left) / innerW) * (klines.length - 1))
+    const idx = Math.round(((mx - PAD.left) / innerW) * Math.max(klines.length - 1, 0))
     const i = Math.max(0, Math.min(klines.length - 1, idx))
     setTooltip({ idx: i, x: xScale(i), y: yScale(klines[i].close) })
   }, [klines])
+
+  // Pinch-to-zoom
+  const getPinchDist = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) return 0
+    const dx = e.touches[0].clientX - e.touches[1].clientX
+    const dy = e.touches[0].clientY - e.touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      pinchRef.current = { dist: getPinchDist(e), count: zoomHours || 9999 }
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length !== 2 || !pinchRef.current) return
+    const newDist = getPinchDist(e)
+    const ratio = pinchRef.current.dist / Math.max(newDist, 1)
+    const newCount = Math.round(pinchRef.current.count * ratio)
+    // Map hours inversely: larger count → fewer visible hours
+    const newHours = Math.max(4, Math.min(9999, newCount))
+    if (newHours > 10000) {
+      setZoomHours(0) // ALL
+    } else if (newHours > 500) {
+      setZoomHours(Math.round(newHours / 24) * 24)
+    } else {
+      setZoomHours(Math.round(newHours / 4) * 4)
+    }
+  }
+
+  const handleTouchEnd = () => {
+    pinchRef.current = null
+  }
+
+  // Mouse wheel zoom
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    const current = zoomHours || 9999
+    const factor = e.deltaY > 0 ? 1.3 : 0.7
+    const newHours = Math.round(current * factor)
+    if (newHours > 10000) {
+      setZoomHours(0)
+    } else if (newHours <= 4) {
+      setZoomHours(4)
+    } else {
+      setZoomHours(newHours)
+    }
+  }, [zoomHours])
 
   // Average buy price y-position
   const avgY = avg_buy_price > 0 ? yScale(avg_buy_price) : null
@@ -77,6 +155,23 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
 
   return (
     <div className="relative select-none touch-none">
+      {/* Zoom preset buttons */}
+      <div className="flex gap-1 mb-2">
+        {ZOOM_PRESETS.map(p => (
+          <button
+            key={p.label}
+            onClick={() => setZoomHours(p.hours)}
+            className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
+              zoomHours === p.hours
+                ? 'bg-claude-accent text-white border-claude-accent'
+                : 'bg-white text-claude-text-secondary border-claude-border hover:border-claude-accent'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
@@ -84,6 +179,10 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
         onPointerMove={handlePointer}
         onPointerDown={handlePointer}
         onPointerLeave={() => setTooltip(null)}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onWheel={handleWheel}
       >
         {/* Grid lines */}
         {yTickValues.map(v => (
@@ -110,12 +209,11 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
         <polyline points={points} fill="none" stroke="#d97706" strokeWidth="2"
           strokeLinejoin="round" strokeLinecap="round" />
 
-        {/* Buy markers (green up triangle) */}
+        {/* Buy markers */}
         {buys.map((b, i) => {
           const idx = getKlineIdx(b.created_at)
           const cx = xScale(idx)
           const cy = yScale(b.price) - 3
-          // Constrain to chart area
           if (cy < PAD.top || cy > PAD.top + innerH) return null
           return (
             <g key={`buy-${i}`}>
@@ -127,7 +225,7 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
           )
         })}
 
-        {/* Sell markers (red down triangle) */}
+        {/* Sell markers */}
         {sells.map((s, i) => {
           const idx = getKlineIdx(s.created_at)
           const cx = xScale(idx)
@@ -156,7 +254,7 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
         )}
 
         {/* Tooltip */}
-        {tooltip && (
+        {tooltip && klines[tooltip.idx] && (
           <g>
             <line x1={tooltip.x} y1={PAD.top} x2={tooltip.x} y2={PAD.top + innerH}
               stroke="#d97706" strokeWidth="1" strokeDasharray="3 2" opacity="0.6" />
@@ -206,6 +304,11 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
           <text x={56} y={3.5} className="text-[9px] fill-[#9ca3af]">卖出</text>
         </g>
       </svg>
+
+      {/* Zoom hint */}
+      <p className="text-[9px] text-claude-text-muted text-center mt-1">
+        双指缩放 · 滚轮缩放 · 手指滑动查看价格
+      </p>
     </div>
   )
 }
