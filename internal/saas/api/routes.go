@@ -47,6 +47,7 @@ func SetupRoutes(r *gin.Engine, db *store.DB, hub *ws.Hub, tokenSvc *auth.TokenS
 	api.DELETE("/instances/:id", handleDeleteInstance(db))
 	api.GET("/instances/:id/lots", handleGetInstanceLots(db))
 	api.GET("/instances/:id/trades", handleGetInstanceTrades(db))
+	api.GET("/instances/:id/price-chart", handlePriceChart(db))
 
 	// Dashboard
 	api.GET("/dashboard", handleDashboard(db))
@@ -343,6 +344,55 @@ func handleGetInstanceTrades(db *store.DB) gin.HandlerFunc {
 		var trades []store.TradeRecord
 		db.Where("instance_id = ?", id).Order("created_at DESC").Limit(50).Find(&trades)
 		c.JSON(http.StatusOK, gin.H{"trades": trades})
+	}
+}
+
+func handlePriceChart(db *store.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+
+		// Get instance symbol
+		var inst store.StrategyInstance
+		if db.First(&inst, id).Error != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "instance not found"})
+			return
+		}
+
+		// Load K-line closes for the price line
+		type KlinePoint struct {
+			OpenTime int64   `json:"open_time"`
+			Close    float64 `json:"close"`
+		}
+		var klines []KlinePoint
+		db.Raw(`SELECT open_time, close FROM k_lines 
+			WHERE symbol = ? AND interval = '1h' 
+			ORDER BY open_time ASC LIMIT 200`, inst.Symbol).Scan(&klines)
+
+		// Load trades for buy/sell markers
+		type TradeMarker struct {
+			CreatedAt string  `json:"created_at"`
+			Price     float64 `json:"price"`
+			Action    string  `json:"action"`
+			Engine    string  `json:"engine"`
+			Qty       float64 `json:"qty"`
+		}
+		var markers []TradeMarker
+		db.Raw(`SELECT created_at, filled_price as price, action, engine, filled_qty as qty
+			FROM trade_records 
+			WHERE instance_id = ? 
+			ORDER BY created_at ASC`, id).Scan(&markers)
+
+		// Calculate average buy price
+		type AvgResult struct{ AvgPrice float64 }
+		var avg AvgResult
+		db.Raw(`SELECT AVG(filled_price) as avg_price FROM trade_records 
+			WHERE instance_id = ? AND action = 'BUY'`, id).Scan(&avg)
+
+		c.JSON(http.StatusOK, gin.H{
+			"klines":        klines,
+			"trades":        markers,
+			"avg_buy_price": avg.AvgPrice,
+		})
 	}
 }
 

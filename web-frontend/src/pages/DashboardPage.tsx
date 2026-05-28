@@ -5,8 +5,9 @@ import { Plus, Play, Pause, RefreshCw, ChevronDown, ChevronUp } from 'lucide-rea
 import Card from '@/components/Card'
 import StatusBadge from '@/components/StatusBadge'
 import PnLChartSkeleton from '@/components/skeletons/PnLChartSkeleton'
+import PriceLineChart from '@/components/PriceLineChart'
 import { fetchInstances, updateInstanceStatus, fetchTrades, type Instance, type TradeRecord } from '@/shared/services/instances'
-import { fetchEquitySnapshots } from '@/shared/services/dashboard'
+import { fetchEquitySnapshots, fetchPriceChart } from '@/shared/services/dashboard'
 import { useI18n } from '@/i18n/I18nProvider'
 
 export default function DashboardPage() {
@@ -32,6 +33,13 @@ export default function DashboardPage() {
   const { data: trades = [] } = useQuery({
     queryKey: ['trades', selectedId],
     queryFn: () => selectedId ? fetchTrades(selectedId) : Promise.resolve([]),
+    enabled: !!selectedId,
+    refetchInterval: 60000,
+  })
+
+  const { data: priceChart } = useQuery({
+    queryKey: ['priceChart', selectedId],
+    queryFn: () => selectedId ? fetchPriceChart(selectedId) : Promise.resolve(null),
     enabled: !!selectedId,
     refetchInterval: 60000,
   })
@@ -192,6 +200,25 @@ export default function DashboardPage() {
                   <EquityLineChart snapshots={snapshots} />
                 ) : (
                   <p className="text-sm text-claude-text-muted text-center py-8 lg:py-12">暂无净值数据</p>
+                )}
+              </Card>
+
+              {/* Price Chart with Buy/Sell Markers */}
+              <Card className="p-4 lg:p-6">
+                <h4 className="text-sm font-medium text-claude-text-secondary mb-4">
+                  BTC 价格走势
+                  {priceChart && (
+                    <span className="ml-2 text-xs font-normal text-claude-text-muted">
+                      当前 ${priceChart.klines[priceChart.klines.length - 1]?.close?.toLocaleString('zh-CN', { maximumFractionDigits: 0 }) || '--'}
+                    </span>
+                  )}
+                </h4>
+                {priceChart && priceChart.klines.length > 0 ? (
+                  <PriceLineChart data={priceChart} />
+                ) : (
+                  <p className="text-sm text-claude-text-muted text-center py-8 lg:py-12">
+                    {priceChart && priceChart.klines.length === 0 ? '暂无价格数据' : '加载中...'}
+                  </p>
                 )}
               </Card>
 
