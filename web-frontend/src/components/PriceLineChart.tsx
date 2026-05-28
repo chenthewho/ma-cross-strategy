@@ -161,7 +161,7 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
           <button
             key={p.label}
             onClick={() => setZoomHours(p.hours)}
-            className={`px-2 py-0.5 text-[10px] rounded border transition-colors ${
+            className={`px-2 py-0.5 text-[12px] rounded border transition-colors ${
               zoomHours === p.hours
                 ? 'bg-claude-accent text-white border-claude-accent'
                 : 'bg-white text-claude-text-secondary border-claude-border hover:border-claude-accent'
@@ -190,7 +190,7 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
             <line x1={PAD.left} y1={yScale(v)} x2={W - PAD.right} y2={yScale(v)}
               stroke="#e5e0d8" strokeWidth="0.5" />
             <text x={PAD.left - 8} y={yScale(v) + 4} textAnchor="end"
-              className="text-[9px] fill-[#9ca3af]">
+              className="text-[11px] fill-[#9ca3af]">
               ${v.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
             </text>
           </g>
@@ -247,7 +247,7 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
             <line x1={PAD.left} y1={avgY} x2={W - PAD.right} y2={avgY}
               stroke="#22c55e" strokeWidth="1" strokeDasharray="6 3" opacity="0.7" />
             <text x={W - PAD.right} y={avgY - 6} textAnchor="end"
-              className="text-[9px] fill-[#22c55e] font-medium">
+              className="text-[11px] fill-[#22c55e] font-medium">
               均价 ${avg_buy_price.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
             </text>
           </g>
@@ -268,14 +268,14 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
             <text
               x={tooltip.x > W / 2 ? tooltip.x - 75 : tooltip.x + 75}
               y={PAD.top + 18}
-              textAnchor="middle" className="text-[10px] font-semibold fill-[#d97706]"
+              textAnchor="middle" className="text-[12px] font-semibold fill-[#d97706]"
             >
               ${klines[tooltip.idx].close.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
             </text>
             <text
               x={tooltip.x > W / 2 ? tooltip.x - 75 : tooltip.x + 75}
               y={PAD.top + 35}
-              textAnchor="middle" className="text-[9px] fill-[#9ca3af]"
+              textAnchor="middle" className="text-[11px] fill-[#9ca3af]"
             >
               {new Date(klines[tooltip.idx].open_time).toLocaleString('zh-CN', {
                 month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
@@ -287,7 +287,7 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
         {/* X-axis time labels */}
         {xLabelIndices.map(i => (
           <text key={i} x={xScale(i)} y={H - 8} textAnchor="middle"
-            className="text-[8px] fill-[#9ca3af]">
+            className="text-[12px] fill-[#9ca3af]">
             {new Date(klines[i].open_time).toLocaleString('zh-CN', {
               month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
             })}
@@ -297,16 +297,16 @@ export default function PriceLineChart({ data }: { data: PriceChartData }) {
         {/* Legend */}
         <g transform={`translate(${PAD.left + 8}, ${PAD.top - 10})`}>
           <line x1={0} y1={0} x2={16} y2={0} stroke="#d97706" strokeWidth="2" />
-          <text x={20} y={3.5} className="text-[9px] fill-[#9ca3af]">价格</text>
+          <text x={20} y={3.5} className="text-[11px] fill-[#9ca3af]">价格</text>
           <polygon points="28,-5 24,2 32,2" fill="#22c55e" />
-          <text x={36} y={3.5} className="text-[9px] fill-[#9ca3af]">买入</text>
+          <text x={36} y={3.5} className="text-[11px] fill-[#9ca3af]">买入</text>
           <polygon points="48,5 44,-2 52,-2" fill="#ef4444" />
-          <text x={56} y={3.5} className="text-[9px] fill-[#9ca3af]">卖出</text>
+          <text x={56} y={3.5} className="text-[11px] fill-[#9ca3af]">卖出</text>
         </g>
       </svg>
 
       {/* Zoom hint */}
-      <p className="text-[9px] text-claude-text-muted text-center mt-1">
+      <p className="text-[11px] text-claude-text-muted text-center mt-1">
         双指缩放 · 滚轮缩放 · 手指滑动查看价格
       </p>
     </div>

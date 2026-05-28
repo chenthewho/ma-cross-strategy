@@ -336,8 +336,8 @@ function EquityLineChart({ snapshots }: { snapshots: EquityPoint[] }) {
   const [tooltip, setTooltip] = useState<{ i: number; x: number; y: number } | null>(null)
 
   const W = 600
-  const H = 200
-  const PAD = { top: 20, right: 20, bottom: 30, left: 60 }
+  const H = 240
+  const PAD = { top: 24, right: 20, bottom: 36, left: 70 }
   const innerW = W - PAD.left - PAD.right
   const innerH = H - PAD.top - PAD.bottom
 
@@ -380,7 +380,7 @@ function EquityLineChart({ snapshots }: { snapshots: EquityPoint[] }) {
         {yTickValues.map(v => (
           <g key={v}>
             <line x1={PAD.left} y1={yScale(v)} x2={W - PAD.right} y2={yScale(v)} stroke="#e5e0d8" strokeWidth="0.5" />
-            <text x={PAD.left - 6} y={yScale(v) + 4} textAnchor="end" className="text-[8px] fill-[#9ca3af]">
+            <text x={PAD.left - 8} y={yScale(v) + 5} textAnchor="end" className="text-[11px] fill-[#9ca3af]">
               ¥{v.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
             </text>
           </g>
@@ -413,7 +413,7 @@ function EquityLineChart({ snapshots }: { snapshots: EquityPoint[] }) {
               x={tooltip.x > W / 2 ? tooltip.x - 70 : tooltip.x + 70}
               y={PAD.top + 23}
               textAnchor="middle"
-              className="text-[10px] font-semibold fill-[#d97706]"
+              className="text-[12px] font-semibold fill-[#d97706]"
             >
               ¥{snapshots[tooltip.i].total_equity.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
             </text>
@@ -423,10 +423,10 @@ function EquityLineChart({ snapshots }: { snapshots: EquityPoint[] }) {
         {/* Time axis labels */}
         {snapshots.length > 1 && (
           <>
-            <text x={PAD.left} y={H - 6} textAnchor="start" className="text-[8px] fill-[#9ca3af]">
+            <text x={PAD.left} y={H - 8} textAnchor="start" className="text-[11px] fill-[#9ca3af]">
               {new Date(snapshots[0].recorded_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
             </text>
-            <text x={W - PAD.right} y={H - 6} textAnchor="end" className="text-[8px] fill-[#9ca3af]">
+            <text x={W - PAD.right} y={H - 8} textAnchor="end" className="text-[11px] fill-[#9ca3af]">
               {new Date(snapshots[snapshots.length - 1].recorded_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
             </text>
           </>
