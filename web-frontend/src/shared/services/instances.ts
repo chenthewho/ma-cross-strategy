@@ -16,7 +16,7 @@ export interface Instance {
 
 export async function fetchInstances(): Promise<Instance[]> {
   const res = await apiFetch<{ instances: Instance[] }>('/api/v1/instances')
-  return res.instances || []
+  return Array.isArray(res?.instances) ? res.instances : []
 }
 
 export async function fetchInstance(id: number): Promise<Instance> {
@@ -56,5 +56,5 @@ export interface TradeRecord {
 
 export async function fetchTrades(instanceId: number): Promise<TradeRecord[]> {
   const res = await apiFetch<{ trades: TradeRecord[] }>(`/api/v1/instances/${instanceId}/trades`)
-  return res.trades || []
+  return Array.isArray(res?.trades) ? res.trades : []
 }

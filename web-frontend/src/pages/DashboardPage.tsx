@@ -46,11 +46,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const idParam = searchParams.get('instance')
+    const safeInstances = instances || []
     if (idParam && !selectedId) {
       const id = parseInt(idParam)
-      if (!isNaN(id) && instances.some((i) => i.id === id)) setSelectedId(id)
+      if (!isNaN(id) && safeInstances.some((i) => i.id === id)) setSelectedId(id)
     }
-    if (!idParam && instances.length > 0 && !selectedId) setSelectedId(instances[0].id)
+    if (!idParam && safeInstances.length > 0 && !selectedId) setSelectedId(safeInstances[0].id)
   }, [instances, searchParams])
 
   const selectInstance = (id: number) => { setSelectedId(id); setSearchParams({ instance: String(id) }) }
