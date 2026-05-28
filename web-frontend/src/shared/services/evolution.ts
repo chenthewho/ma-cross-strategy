@@ -1,23 +1,51 @@
-import { apiFetch } from './api'
+import { apiFetch } from './api';
 
 export interface EvolutionTask {
-  id: number
-  status: string
-  progress?: { generation: number; max_generations: number; best_score: number }
-  result?: { score_total: number }
+  id: number;
+  strategy_id: string;
+  status: string;
+  created_at: string;
+  progress?: { generation: number; max_generations: number; best_score: number };
+  result?: { score_total: number };
 }
 
-export async function fetchEvolutionTasks(): Promise<EvolutionTask[]> {
-  const res = await apiFetch<{ tasks: EvolutionTask[] }>('/api/v1/evolution/tasks')
-  return res.tasks || []
+export interface Challenger {
+  id: number;
+  role: string;
+  score_total: number;
+  max_drawdown: number;
+  score_6m: number;
+  score_2y: number;
+  score_5y: number;
+  created_at: string;
 }
 
-export async function createEvolutionTask(data: Record<string, unknown>) {
-  const res = await apiFetch<{ task: any }>('/api/v1/evolution/tasks', { method: 'POST', body: JSON.stringify(data) })
-  return res.task
+export async function fetchEvolutionTasks(): Promise<{
+  tasks: EvolutionTask[];
+  challengers: Challenger[];
+}> {
+  const res = await apiFetch<{ tasks: EvolutionTask[]; challengers: Challenger[] }>(
+    '/api/v1/evolution/tasks',
+  );
+  return {
+    tasks: Array.isArray(res?.tasks) ? res.tasks : [],
+    challengers: Array.isArray(res?.challengers) ? res.challengers : [],
+  };
 }
 
-export async function fetchGenomes() {
-  const res = await apiFetch<{ challengers: any[] }>('/api/v1/genome/challengers')
-  return res.challengers || []
+export async function createEvolutionTask(data: {
+  strategy_id: string;
+  pop_size?: number;
+  max_generations?: number;
+}) {
+  return apiFetch<any>('/api/v1/evolution/tasks', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function promoteEvolutionTask(id: number) {
+  return apiFetch<any>(`/api/v1/evolution/tasks/${id}/promote`, {
+    method: 'POST',
+  });
 }
