@@ -17,4 +17,3 @@ bin/
 # Frontend build artifacts
 web-frontend/dist/
 web-frontend/node_modules/
-saas
