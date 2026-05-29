@@ -56,6 +56,7 @@ export interface TradeRecord {
   cost_basis: number
   fee: number
   lot_type: string
+  exchange_rate: number
   created_at: string
 }
 

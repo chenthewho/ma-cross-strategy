@@ -115,6 +115,7 @@ type TradeRecord struct {
 	CostBasis     float64   `gorm:"default:0" json:"cost_basis"` // USD cost basis (SELL only, same unit as filled_price)
 	Fee           float64   `gorm:"default:0" json:"fee"`
 	LotType       string    `gorm:"not null" json:"lot_type"` // "DEAD_STACK" | "FLOATING"
+	ExchangeRate  float64   `gorm:"default:0" json:"exchange_rate"` // USD/CNY rate at trade time
 	CreatedAt     time.Time `json:"created_at"`
 }
 

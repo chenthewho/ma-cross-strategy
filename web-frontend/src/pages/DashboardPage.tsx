@@ -283,7 +283,7 @@ export default function DashboardPage() {
                             ${tr.filled_price > 0 ? Number(tr.filled_price).toLocaleString('zh-CN', { maximumFractionDigits: 0 }) : '--'}
                           </span>
                           <span className={`font-mono text-right font-medium ${tr.action === 'BUY' ? 'text-red-500' : 'text-green-600'}`}>
-                            {tr.action === 'BUY' ? '-' : '+'}${((tr.filled_qty || 0) * (tr.filled_price || 0)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
+                            {tr.action === 'BUY' ? '-' : '+'}¥{((tr.filled_qty || 0) * (tr.filled_price || 0) * (tr.exchange_rate || 7.25)).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}
                           </span>
                           <span className="text-claude-text-muted text-[10px] lg:text-xs w-14 text-right">
                             {new Date(tr.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}

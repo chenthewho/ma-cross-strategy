@@ -317,6 +317,7 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			FilledPrice:   currentPrice,
 			CostBasis:     costBasis,
 			LotType:       intent.LotType,
+			ExchangeRate:  usdCnyRate,
 		})
 	}
 	doTrade(output.MacroIntent, "MACRO")
