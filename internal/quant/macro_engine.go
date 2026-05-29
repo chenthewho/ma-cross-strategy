@@ -36,17 +36,13 @@ func ComputeMacroDecision(in MacroDecisionInput) *MacroIntent {
 		// Acceleration overrides base — extra buy
 		orderCNY = in.MonthlyInject * in.MacroAccelMultiplier
 
-	case baseTriggered && deadlineTriggered:
-		// Both base and deadline → use the larger amount
-		baseOrder := in.MonthlyInject
-		deadlineOrder := math.Min(in.SpendableCNY, in.MonthlyInject*2)
-		orderCNY = math.Max(baseOrder, deadlineOrder)
-
 	case baseTriggered:
+		// Base DCA, optionally amplified by deadline catch-up
 		orderCNY = in.MonthlyInject
-
-	case deadlineTriggered:
-		orderCNY = math.Min(in.SpendableCNY, in.MonthlyInject*2)
+		if deadlineTriggered {
+			deadlineOrder := math.Min(in.SpendableCNY, in.MonthlyInject*2)
+			orderCNY = math.Max(orderCNY, deadlineOrder)
+		}
 
 	default:
 		return nil
