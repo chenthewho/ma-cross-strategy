@@ -321,6 +321,7 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 		doTrade(&quant.MacroIntent{
 			Action:    output.MicroIntent.Action,
 			AmountCNY: output.MicroIntent.AmountCNY,
+			LotType:   output.MicroIntent.LotType,
 		}, "MICRO")
 	}
 	// Clamp negatives first
@@ -341,8 +342,9 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 	}
 	m.db.WithContext(ctx).Exec(
 		`UPDATE portfolio_states SET cny_balance=$1, float_hold=$2, float_units=$3, realized_pnl=$4, total_equity=$5,
-		 last_processed_bar_time=$6, updated_at=NOW() WHERE instance_id=$7`,
-		ps.CNYBalance, ps.FloatHold, ps.FloatUnits, ps.RealizedPnL, ps.TotalEquity, barTime, instance.ID,
+		 dead_hold=$6, dead_units=$7, last_processed_bar_time=$8, updated_at=NOW() WHERE instance_id=$9`,
+		ps.CNYBalance, ps.FloatHold, ps.FloatUnits, ps.RealizedPnL, ps.TotalEquity,
+		ps.DeadHold, ps.DeadUnits, barTime, instance.ID,
 	)
 
 	// ── 11. Record EquitySnapshot for charting ──
