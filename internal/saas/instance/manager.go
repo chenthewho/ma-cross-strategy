@@ -263,16 +263,18 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 		amount := intent.AmountCNY
 		var costBasis float64 // only populated for SELL
 		if intent.Action == "BUY" {
-			if amount > ps.CNYBalance {
-				amount = ps.CNYBalance
-			}
-			units := amount / usdCnyRate / currentPrice
-			ps.CNYBalance -= amount
 			if intent.LotType == "DEAD_STACK" {
+				// DCA is new money injection — don't deduct from CNYBalance
+				units := amount / usdCnyRate / currentPrice
 				ps.DeadHold += amount
 				ps.DeadUnits += units
 				ps.CumulativeInjected += amount
 			} else {
+				if amount > ps.CNYBalance {
+					amount = ps.CNYBalance
+				}
+				units := amount / usdCnyRate / currentPrice
+				ps.CNYBalance -= amount
 				ps.FloatHold += amount
 				ps.FloatUnits += units
 			}
