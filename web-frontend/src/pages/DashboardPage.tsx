@@ -183,14 +183,14 @@ export default function DashboardPage() {
                   className="mt-3"
                 />
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mt-3 pt-3 border-t border-claude-border">
-                  <StatItem label="盈利金额" value={formatPnL(selected.total_equity ?? 0, selected.initial_capital ?? 0)}
-                    colorClass={(selected.total_equity ?? 0) >= (selected.initial_capital ?? 0) ? 'text-claude-success' : 'text-claude-danger'} />
-                  <StatItem label="盈亏百分比" value={formatPnLPct(selected.total_equity ?? 0, selected.initial_capital ?? 0)}
-                    colorClass={(selected.total_equity ?? 0) >= (selected.initial_capital ?? 0) ? 'text-claude-success' : 'text-claude-danger'} />
+                  <StatItem label="总成本" value={formatCNY((selected as any).total_cost ?? selected.initial_capital ?? 0)}
+                    desc={`初始 ${formatCNY(selected.initial_capital ?? 0)} + 定投 ${formatCNY((selected as any).cumulative_injected ?? 0)}`} />
+                  <StatItem label="盈利金额" value={formatPnL(selected.total_equity ?? 0, (selected as any).total_cost ?? selected.initial_capital ?? 0)}
+                    colorClass={(selected.total_equity ?? 0) >= ((selected as any).total_cost ?? selected.initial_capital ?? 0) ? 'text-claude-success' : 'text-claude-danger'} />
+                  <StatItem label="盈亏百分比" value={formatPnLPct(selected.total_equity ?? 0, (selected as any).total_cost ?? selected.initial_capital ?? 0)}
+                    colorClass={(selected.total_equity ?? 0) >= ((selected as any).total_cost ?? selected.initial_capital ?? 0) ? 'text-claude-success' : 'text-claude-danger'} />
                   <StatItem label="已实现盈亏" value={formatPnL((selected as any).realized_pnl ?? 0, 0)}
                     colorClass={((selected as any).realized_pnl ?? 0) >= 0 ? 'text-claude-success' : 'text-claude-danger'} />
-                  <StatItem label="初始资金" value={formatCNY(selected.initial_capital ?? 0)} />
-                  <div />
                 </div>
               </Card>
 
@@ -314,11 +314,12 @@ export default function DashboardPage() {
   )
 }
 
-function StatItem({ label, value, colorClass }: { label: string; value: string; colorClass?: string }) {
+function StatItem({ label, value, colorClass, desc }: { label: string; value: string; colorClass?: string; desc?: string }) {
   return (
     <div>
       <p className="text-[10px] lg:text-xs text-claude-text-muted mb-0.5 lg:mb-1">{label}</p>
       <p className={`font-mono text-sm lg:text-lg font-semibold ${colorClass || 'text-claude-text'}`}>{value}</p>
+      {desc && <p className="text-[9px] lg:text-[10px] text-claude-text-muted mt-0.5">{desc}</p>}
     </div>
   )
 }

@@ -216,12 +216,14 @@ type instanceWithPortfolio struct {
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 	// Portfolio fields (joined from portfolio_states)
-	TotalEquity    float64 `json:"total_equity"`
-	CNYBalance     float64 `json:"cny_balance"`
-	DeadHold       float64 `json:"dead_hold"`
-	FloatHold      float64 `json:"float_hold"`
-	ColdSealedHold float64 `json:"cold_sealed_hold"`
-	InitialCapital float64 `json:"initial_capital"`
+	TotalEquity        float64 `json:"total_equity"`
+	CNYBalance         float64 `json:"cny_balance"`
+	DeadHold           float64 `json:"dead_hold"`
+	FloatHold          float64 `json:"float_hold"`
+	ColdSealedHold     float64 `json:"cold_sealed_hold"`
+	InitialCapital     float64 `json:"initial_capital"`
+	CumulativeInjected float64 `json:"cumulative_injected"` // total DCA money injected
+	TotalCost          float64 `json:"total_cost"`          // initial_capital + cumulative_injected
 }
 
 func handleListInstances(db *store.DB) gin.HandlerFunc {
@@ -237,7 +239,9 @@ func handleListInstances(db *store.DB) gin.HandlerFunc {
 			COALESCE(ps.dead_hold, 0) as dead_hold,
 			COALESCE(ps.float_hold, 0) as float_hold,
 			COALESCE(ps.cold_sealed_hold, 0) as cold_sealed_hold,
-			COALESCE(ps.initial_capital, 0) as initial_capital
+			COALESCE(ps.initial_capital, 0) as initial_capital,
+			COALESCE(ps.cumulative_injected, 0) as cumulative_injected,
+			(COALESCE(ps.initial_capital, 0) + COALESCE(ps.cumulative_injected, 0)) as total_cost
 		FROM strategy_instances si
 		LEFT JOIN portfolio_states ps ON ps.instance_id = si.id
 		WHERE si.user_id = ? AND si.status != ?
@@ -430,7 +434,9 @@ func handleDashboard(db *store.DB) gin.HandlerFunc {
 			COALESCE(ps.float_units, 0) as float_units,
 			COALESCE(ps.realized_pnl, 0) as realized_pnl,
 			COALESCE(ps.cold_sealed_hold, 0) as cold_sealed_hold,
-			COALESCE(ps.initial_capital, 0) as initial_capital
+			COALESCE(ps.initial_capital, 0) as initial_capital,
+			COALESCE(ps.cumulative_injected, 0) as cumulative_injected,
+			(COALESCE(ps.initial_capital, 0) + COALESCE(ps.cumulative_injected, 0)) as total_cost
 		FROM strategy_instances si
 		LEFT JOIN portfolio_states ps ON ps.instance_id = si.id
 		WHERE si.user_id = ? AND si.status != ?

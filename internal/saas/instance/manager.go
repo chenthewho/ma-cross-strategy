@@ -271,6 +271,7 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 			if intent.LotType == "DEAD_STACK" {
 				ps.DeadHold += amount
 				ps.DeadUnits += units
+				ps.CumulativeInjected += amount
 			} else {
 				ps.FloatHold += amount
 				ps.FloatUnits += units
@@ -342,9 +343,9 @@ func (m *Manager) Tick(ctx context.Context, instance store.StrategyInstance) err
 	}
 	m.db.WithContext(ctx).Exec(
 		`UPDATE portfolio_states SET cny_balance=$1, float_hold=$2, float_units=$3, realized_pnl=$4, total_equity=$5,
-		 dead_hold=$6, dead_units=$7, last_processed_bar_time=$8, updated_at=NOW() WHERE instance_id=$9`,
+		 dead_hold=$6, dead_units=$7, cumulative_injected=$8, last_processed_bar_time=$9, updated_at=NOW() WHERE instance_id=$10`,
 		ps.CNYBalance, ps.FloatHold, ps.FloatUnits, ps.RealizedPnL, ps.TotalEquity,
-		ps.DeadHold, ps.DeadUnits, barTime, instance.ID,
+		ps.DeadHold, ps.DeadUnits, ps.CumulativeInjected, barTime, instance.ID,
 	)
 
 	// ── 11. Record EquitySnapshot for charting ──

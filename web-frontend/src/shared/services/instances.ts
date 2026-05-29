@@ -11,6 +11,11 @@ export interface Instance {
   dead_hold?: number
   float_hold?: number
   initial_capital?: number
+  cumulative_injected?: number
+  total_cost?: number
+  realized_pnl?: number
+  cold_sealed_hold?: number
+  float_units?: number
   created_at: string
 }
 

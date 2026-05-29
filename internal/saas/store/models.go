@@ -69,6 +69,7 @@ type PortfolioState struct {
 	TotalEquity          float64   `gorm:"not null;default:0" json:"total_equity"`
 	RealizedPnL          float64   `gorm:"not null;default:0" json:"realized_pnl"`  // cumulative realized PnL
 	InitialCapital       float64   `gorm:"not null;default:0" json:"initial_capital"`
+	CumulativeInjected   float64   `gorm:"not null;default:0" json:"cumulative_injected"` // total DCA injected into dead stack
 	LastProcessedBarTime int64     `gorm:"default:0" json:"last_processed_bar_time"` // ms timestamp
 	UpdatedAt            time.Time `json:"updated_at"`
 }
