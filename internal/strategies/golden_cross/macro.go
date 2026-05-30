@@ -34,11 +34,11 @@ func ComputeMacro(
 		priceDeviation = (currentPrice - emaLong) / emaLong
 	}
 
-	// Days since last macro action
-	daysSinceLastMacro := 0
+	// Days since last macro action (fractional, to support sub-daily intervals)
+	var daysSinceLastMacro float64
 	if runtime.LastMacroAction > 0 && len(timestamps) > 0 {
 		lastBar := timestamps[len(timestamps)-1]
-		daysSinceLastMacro = int((lastBar - runtime.LastMacroAction) / (24 * 3600 * 1000))
+		daysSinceLastMacro = float64(lastBar-runtime.LastMacroAction) / (24.0 * 3600.0 * 1000.0)
 	}
 
 	input := quant.MacroDecisionInput{

@@ -135,7 +135,7 @@ type MacroDecisionInput struct {
 	MonthlyInject        float64 // monthly injection amount (from SpawnPoint)
 	TimeDilation         float64 // from market state
 	PriceDeviation       float64 // (Price - EMA_long) / EMA_long
-	DaysSinceLastMacro   int     // days since last macro action
+	DaysSinceLastMacro   float64 // days since last macro action (fractional)
 	MacroIntervalDays    int     // base DCA interval days (from chromosome)
 	MacroAccelThreshold  float64 // price deviation trigger threshold
 	MacroAccelMultiplier float64 // acceleration multiplier

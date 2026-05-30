@@ -15,11 +15,9 @@ import "math"
 // Iron law: only BUY intentions, never SELL.
 // Minimum order: 100 CNY.
 func ComputeMacroDecision(in MacroDecisionInput) *MacroIntent {
-	var orderCNY float64
-
 	// ── Trigger 1: Base DCA ──
 	effectiveInterval := float64(in.MacroIntervalDays) * in.TimeDilation
-	baseTriggered := effectiveInterval > 0 && float64(in.DaysSinceLastMacro) >= effectiveInterval
+	baseTriggered := effectiveInterval > 0 && in.DaysSinceLastMacro >= effectiveInterval
 
 	// ── Trigger 2: Acceleration (price far below long EMA) ──
 	accelTriggered := in.PriceDeviation < -in.MacroAccelThreshold
@@ -31,24 +29,31 @@ func ComputeMacroDecision(in MacroDecisionInput) *MacroIntent {
 		return nil
 	}
 
+	// Base DCA is new money injection — not constrained by spendableCNY.
+	if baseTriggered {
+		orderCNY := in.MonthlyInject
+		if orderCNY < 100 {
+			return nil
+		}
+		return &MacroIntent{
+			Action:    "BUY",
+			AmountCNY: RoundToCNY(orderCNY),
+			Engine:    "MACRO",
+			LotType:   "DEAD_STACK",
+		}
+	}
+
+	// Accel / Deadline use available funds.
+	var orderCNY float64
 	switch {
 	case accelTriggered:
-		// Acceleration overrides base — extra buy
 		orderCNY = in.MonthlyInject * in.MacroAccelMultiplier
-
-	case baseTriggered:
-		// Base DCA, optionally amplified by deadline catch-up
-		orderCNY = in.MonthlyInject
-		if deadlineTriggered {
-			deadlineOrder := math.Min(in.SpendableCNY, in.MonthlyInject*2)
-			orderCNY = math.Max(orderCNY, deadlineOrder)
-		}
-
+	case deadlineTriggered:
+		orderCNY = math.Min(in.SpendableCNY, in.MonthlyInject*2)
 	default:
 		return nil
 	}
 
-	// Clamp to available funds and minimum order
 	orderCNY = ClipFloat64(orderCNY, 100, in.SpendableCNY)
 	if orderCNY < 100 {
 		return nil

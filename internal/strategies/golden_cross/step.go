@@ -34,15 +34,18 @@ func Step(input quant.StrategyInput, params Params) quant.StrategyOutput {
 
 	// ── 4. Macro engine ──
 	var macroIntent *quant.MacroIntent
-	if spendableCNY >= 100 {
+	// DCA is new money injection — always run macro engine if MonthlyInject > 0.
+	// (spendableCNY only matters for acceleration/deadline catch-up, not base DCA.)
+	runMacro := spendableCNY >= 100 || sp.Policy.MonthlyInject >= 100
+	if runMacro {
 		emaLong := quant.EMA(input.Closes, c.EMALongBars)
 		priceDeviation := 0.0
 		if !math.IsNaN(emaLong) && emaLong > 0 {
 			priceDeviation = (input.CurrentPrice - emaLong) / emaLong
 		}
-		daysSince := 0
+		var daysSince float64
 		if input.Runtime.LastMacroAction > 0 {
-			daysSince = int((input.Timestamps[len(input.Timestamps)-1] - input.Runtime.LastMacroAction) / 86400000)
+			daysSince = float64(input.Timestamps[len(input.Timestamps)-1]-input.Runtime.LastMacroAction) / 86400000.0
 		}
 		macroIntent = quant.ComputeMacroDecision(quant.MacroDecisionInput{
 			TotalEquity:          totalEquity,
